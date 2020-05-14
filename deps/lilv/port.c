@@ -21,7 +21,7 @@
 #include "lv2/event/event.h"
 
 #include "lilv/lilv.h"
-#include "sord/sord.h"
+#include "sord.h"
 #include "zix/tree.h"
 
 #include <assert.h>

@@ -18,7 +18,7 @@
 
 #include "lilv/lilv.h"
 
-#include "zix/common.h"
+#include "sord.h"
 #include "zix/tree.h"
 
 #include <stdbool.h>

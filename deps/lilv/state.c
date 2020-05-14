@@ -18,7 +18,7 @@
 
 #include "lilv/lilv.h"
 #include "serd/serd.h"
-#include "sord/sord.h"
+#include "sord.h"
 #include "sratom/sratom.h"
 #include "zix/tree.h"
 

@@ -27,11 +27,8 @@ SET(SERD_SRC
 	deps/serd/writer.c
 )
 SET(SORD_SRC
-	deps/sord/sord.c
-	deps/sord/syntax.c
-	#deps/sord/zix/btree.c
-	#deps/sord/zix/digest.c
-	#deps/sord/zix/hash.c
+	deps/sord.c
+	deps/sord.h
 )
 
 SET(SRATOM_SRC

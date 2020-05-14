@@ -20,35 +20,265 @@
 
 #ifndef SORD_SORD_H
 #define SORD_SORD_H
-
+#define ZIX_API
+#define ZIX_PRIVATE
+#define SORD_API
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
 #include "serd/serd.h"
 
-#ifdef SORD_SHARED
-#    ifdef _WIN32
-#        define SORD_LIB_IMPORT __declspec(dllimport)
-#        define SORD_LIB_EXPORT __declspec(dllexport)
-#    else
-#        define SORD_LIB_IMPORT __attribute__((visibility("default")))
-#        define SORD_LIB_EXPORT __attribute__((visibility("default")))
-#    endif
-#    ifdef SORD_INTERNAL
-#        define SORD_API SORD_LIB_EXPORT
-#    else
-#        define SORD_API SORD_LIB_IMPORT
-#    endif
-#else
-#    define SORD_API
-#endif
 
 #ifdef __cplusplus
 extern "C" {
 #else
 #    include <stdbool.h>
 #endif
+
+typedef enum {
+	ZIX_STATUS_SUCCESS,
+	ZIX_STATUS_ERROR,
+	ZIX_STATUS_NO_MEM,
+	ZIX_STATUS_NOT_FOUND,
+	ZIX_STATUS_EXISTS,
+	ZIX_STATUS_BAD_ARG,
+	ZIX_STATUS_BAD_PERMS,
+} ZixStatus;
+
+/**
+   Function for comparing two elements.
+*/
+typedef int (*ZixComparator)(const void* a, const void* b, void* user_data);
+
+/**
+   Function for testing equality of two elements.
+*/
+typedef bool (*ZixEqualFunc)(const void* a, const void* b);
+
+/**
+   Function to destroy an element.
+*/
+typedef void (*ZixDestroyFunc)(void* ptr);
+
+/**
+   @}
+*/
+
+uint32_t zix_digest_start(void);
+
+uint32_t zix_digest_add(uint32_t hash, const void* buf, size_t len);
+
+
+typedef struct ZixHashImpl ZixHash;
+
+/**
+   Function for computing the hash of an element.
+*/
+typedef uint32_t(*ZixHashFunc)(const void* value);
+
+/**
+   Function to visit a hash element.
+*/
+typedef void (*ZixHashVisitFunc)(void* value,
+	void* user_data);
+
+/**
+   Create a new hash table.
+
+   To minimize space overhead, unlike many hash tables this stores a single
+   value, not a key and a value.  Any size of value can be stored, but all the
+   values in the hash table must be the same size, and the values must be safe
+   to copy with memcpy.  To get key:value behaviour, simply insert a struct
+   with a key and value into the hash.
+
+   @param hash_func The hashing function.
+   @param equal_func A function to test value equality.
+   @param value_size The size of the values to be stored.
+*/
+ZIX_API ZixHash*
+zix_hash_new(ZixHashFunc  hash_func,
+	ZixEqualFunc equal_func,
+	size_t       value_size);
+
+/**
+   Free `hash`.
+*/
+ZIX_API void
+zix_hash_free(ZixHash* hash);
+
+/**
+   Return the number of elements in `hash`.
+*/
+ZIX_API size_t
+zix_hash_size(const ZixHash* hash);
+
+/**
+   Insert an item into `hash`.
+
+   If no matching value is found, ZIX_STATUS_SUCCESS will be returned, and @p
+   inserted will be pointed to the copy of `value` made in the new hash node.
+
+   If a matching value already exists, ZIX_STATUS_EXISTS will be returned, and
+   `inserted` will be pointed to the existing value.
+
+   @param hash The hash table.
+   @param value The value to be inserted.
+   @param inserted The copy of `value` in the hash table.
+   @return ZIX_STATUS_SUCCESS, ZIX_STATUS_EXISTS, or ZIX_STATUS_NO_MEM.
+*/
+ZIX_API ZixStatus
+zix_hash_insert(ZixHash* hash,
+	const void* value,
+	const void** inserted);
+
+/**
+   Remove an item from `hash`.
+
+   @param hash The hash table.
+   @param value The value to remove.
+   @return ZIX_STATUS_SUCCES or ZIX_STATUS_NOT_FOUND.
+*/
+ZIX_API ZixStatus
+zix_hash_remove(ZixHash* hash,
+	const void* value);
+
+/**
+   Search for an item in `hash`.
+
+   @param hash The hash table.
+   @param value The value to search for.
+*/
+ZIX_API const void*
+zix_hash_find(const ZixHash* hash,
+	const void* value);
+
+/**
+   Call `f` on each value in `hash`.
+
+   @param hash The hash table.
+   @param f The function to call on each value.
+   @param user_data The user_data parameter passed to `f`.
+*/
+ZIX_API void
+zix_hash_foreach(ZixHash* hash,
+	ZixHashVisitFunc f,
+	void* user_data);
+
+
+
+
+/**
+   A B-Tree.
+*/
+typedef struct ZixBTreeImpl ZixBTree;
+
+/**
+   A B-Tree node (opaque).
+*/
+typedef struct ZixBTreeNodeImpl ZixBTreeNode;
+
+/**
+   An iterator over a B-Tree.
+
+   Note that modifying the trees invalidates all iterators, so all iterators
+   are const iterators.
+*/
+typedef struct ZixBTreeIterImpl ZixBTreeIter;
+
+/**
+   Create a new (empty) B-Tree.
+*/
+ZIX_API ZixBTree*
+zix_btree_new(ZixComparator  cmp,
+	void* cmp_data,
+	ZixDestroyFunc destroy);
+
+/**
+   Free `t`.
+*/
+ZIX_API void
+zix_btree_free(ZixBTree* t);
+
+/**
+   Return the number of elements in `t`.
+*/
+ZIX_API size_t
+zix_btree_size(const ZixBTree* t);
+
+/**
+   Insert the element `e` into `t`.
+*/
+ZIX_API ZixStatus
+zix_btree_insert(ZixBTree* t, void* e);
+
+/**
+   Remove the value `e` from `t`.
+
+   @param t Tree to remove from.
+
+   @param e Value to remove.
+
+   @param out Set to point to the removed pointer (which may not equal `e`).
+
+   @param next If non-NULL, pointed to the value following `e`.  If *next is
+   also non-NULL, the iterator is reused, otherwise a new one is allocated.  To
+   reuse an iterator, no items may have been added since its creation.
+*/
+ZIX_API ZixStatus
+zix_btree_remove(ZixBTree* t, const void* e, void** out, ZixBTreeIter** next);
+
+/**
+   Set `ti` to an element equal to `e` in `t`.
+   If no such item exists, `ti` is set to NULL.
+*/
+ZIX_API ZixStatus
+zix_btree_find(const ZixBTree* t, const void* e, ZixBTreeIter** ti);
+
+/**
+   Set `ti` to the smallest element in `t` that is not less than `e`.
+
+   Wildcards are supported, so if the search key `e` compares equal to many
+   values in the tree, `ti` will be set to the least such element.  The search
+   key `e` is always passed as the second argument to the comparator.
+*/
+ZIX_API ZixStatus
+zix_btree_lower_bound(const ZixBTree* t, const void* e, ZixBTreeIter** ti);
+
+/**
+   Return the data associated with the given tree item.
+*/
+ZIX_API void*
+zix_btree_get(const ZixBTreeIter* ti);
+
+/**
+   Return an iterator to the first (smallest) element in `t`.
+
+   The returned iterator must be freed with zix_btree_iter_free().
+*/
+ZIX_API ZixBTreeIter*
+zix_btree_begin(const ZixBTree* t);
+
+/**
+   Return true iff `i` is an iterator to the end of its tree.
+*/
+ZIX_API bool
+zix_btree_iter_is_end(const ZixBTreeIter* i);
+
+/**
+   Increment `i` to point to the next element in the tree.
+*/
+ZIX_API void
+zix_btree_iter_increment(ZixBTreeIter* i);
+
+/**
+   Free `i`.
+*/
+ZIX_API void
+zix_btree_iter_free(ZixBTreeIter* i);
+
+
+
 
 /**
    @defgroup sord Sord
@@ -107,18 +337,18 @@ typedef const SordNode* SordQuad[4];
    Index into a SordQuad.
 */
 typedef enum {
-	SORD_SUBJECT   = 0,  /**< Subject */
+	SORD_SUBJECT = 0,  /**< Subject */
 	SORD_PREDICATE = 1,  /**< Predicate ("key") */
-	SORD_OBJECT    = 2,  /**< Object    ("value") */
-	SORD_GRAPH     = 3   /**< Graph     ("context") */
+	SORD_OBJECT = 2,  /**< Object    ("value") */
+	SORD_GRAPH = 3   /**< Graph     ("context") */
 } SordQuadIndex;
 
 /**
    Type of a node.
 */
 typedef enum {
-	SORD_URI     = 1,  /**< URI */
-	SORD_BLANK   = 2,  /**< Blank node identifier */
+	SORD_URI = 1,  /**< URI */
+	SORD_BLANK = 2,  /**< Blank node identifier */
 	SORD_LITERAL = 3   /**< Literal (string with optional lang or datatype) */
 } SordNodeType;
 
@@ -164,15 +394,11 @@ sord_world_free(SordWorld* world);
 */
 SORD_API
 void
-sord_world_set_error_sink(SordWorld*    world,
-                          SerdErrorSink error_sink,
-                          void*         handle);
+sord_world_set_error_sink(SordWorld* world,
+	SerdErrorSink error_sink,
+	void* handle);
 
-/**
-   @}
-   @name Node
-   @{
-*/
+
 
 /**
    Get a URI node from a string.
@@ -189,9 +415,9 @@ sord_new_uri(SordWorld* world, const uint8_t* uri);
 */
 SORD_API
 SordNode*
-sord_new_relative_uri(SordWorld*     world,
-                      const uint8_t* uri,
-                      const uint8_t* base_uri);
+sord_new_relative_uri(SordWorld* world,
+	const uint8_t* uri,
+	const uint8_t* base_uri);
 
 /**
    Get a blank node from a string.
@@ -211,10 +437,10 @@ sord_new_blank(SordWorld* world, const uint8_t* str);
 */
 SORD_API
 SordNode*
-sord_new_literal(SordWorld*     world,
-                 SordNode*      datatype,
-                 const uint8_t* str,
-                 const char*    lang);
+sord_new_literal(SordWorld* world,
+	SordNode* datatype,
+	const uint8_t* str,
+	const char* lang);
 
 /**
    Copy a node (obtain a reference).
@@ -261,8 +487,8 @@ sord_node_get_string_counted(const SordNode* node, size_t* bytes);
 SORD_API
 const uint8_t*
 sord_node_get_string_measured(const SordNode* node,
-                              size_t*         bytes,
-                              size_t*         chars);
+	size_t* bytes,
+	size_t* chars);
 
 /**
    Return the language of a literal node (or NULL).
@@ -304,7 +530,7 @@ sord_node_is_inline_object(const SordNode* node);
 SORD_API
 bool
 sord_node_equals(const SordNode* a,
-                 const SordNode* b);
+	const SordNode* b);
 
 /**
    Return a SordNode as a SerdNode.
@@ -322,17 +548,11 @@ sord_node_to_serd_node(const SordNode* node);
 */
 SORD_API
 SordNode*
-sord_node_from_serd_node(SordWorld*      world,
-                         SerdEnv*        env,
-                         const SerdNode* node,
-                         const SerdNode* datatype,
-                         const SerdNode* lang);
-
-/**
-   @}
-   @name Model
-   @{
-*/
+sord_node_from_serd_node(SordWorld* world,
+	SerdEnv* env,
+	const SerdNode* node,
+	const SerdNode* datatype,
+	const SerdNode* lang);
 
 /**
    Create a new model.
@@ -348,8 +568,8 @@ sord_node_from_serd_node(SordWorld*      world,
 SORD_API
 SordModel*
 sord_new(SordWorld* world,
-         unsigned  indices,
-         bool      graphs);
+	unsigned  indices,
+	bool      graphs);
 
 /**
    Close and free `model`.
@@ -402,11 +622,11 @@ sord_find(SordModel* model, const SordQuad pat);
 */
 SORD_API
 SordIter*
-sord_search(SordModel*      model,
-            const SordNode* s,
-            const SordNode* p,
-            const SordNode* o,
-            const SordNode* g);
+sord_search(SordModel* model,
+	const SordNode* s,
+	const SordNode* p,
+	const SordNode* o,
+	const SordNode* g);
 /**
    Search for a single node that matches a pattern.
    Exactly one of `s`, `p`, `o` must be NULL.
@@ -416,33 +636,33 @@ sord_search(SordModel*      model,
 */
 SORD_API
 SordNode*
-sord_get(SordModel*      model,
-         const SordNode* s,
-         const SordNode* p,
-         const SordNode* o,
-         const SordNode* g);
+sord_get(SordModel* model,
+	const SordNode* s,
+	const SordNode* p,
+	const SordNode* o,
+	const SordNode* g);
 
 /**
    Return true iff a statement exists.
 */
 SORD_API
 bool
-sord_ask(SordModel*      model,
-         const SordNode* s,
-         const SordNode* p,
-         const SordNode* o,
-         const SordNode* g);
+sord_ask(SordModel* model,
+	const SordNode* s,
+	const SordNode* p,
+	const SordNode* o,
+	const SordNode* g);
 
 /**
    Return the number of matching statements.
 */
 SORD_API
 uint64_t
-sord_count(SordModel*      model,
-           const SordNode* s,
-           const SordNode* p,
-           const SordNode* o,
-           const SordNode* g);
+sord_count(SordModel* model,
+	const SordNode* s,
+	const SordNode* p,
+	const SordNode* o,
+	const SordNode* g);
 
 /**
    Check if `model` contains a triple pattern.
@@ -499,7 +719,7 @@ sord_erase(SordModel* model, SordIter* iter);
 SORD_API
 SordInserter*
 sord_inserter_new(SordModel* model,
-                  SerdEnv*   env);
+	SerdEnv* env);
 
 /**
    Free an inserter.
@@ -515,8 +735,8 @@ sord_inserter_free(SordInserter* inserter);
 */
 SORD_API
 SerdStatus
-sord_inserter_set_base_uri(SordInserter*   inserter,
-                           const SerdNode* uri);
+sord_inserter_set_base_uri(SordInserter* inserter,
+	const SerdNode* uri);
 
 /**
    Set a namespace prefix for writing to the model.
@@ -525,9 +745,9 @@ sord_inserter_set_base_uri(SordInserter*   inserter,
 */
 SORD_API
 SerdStatus
-sord_inserter_set_prefix(SordInserter*   inserter,
-                         const SerdNode* name,
-                         const SerdNode* uri);
+sord_inserter_set_prefix(SordInserter* inserter,
+	const SerdNode* name,
+	const SerdNode* uri);
 
 /**
    Write a statement to the model.
@@ -536,14 +756,14 @@ sord_inserter_set_prefix(SordInserter*   inserter,
 */
 SORD_API
 SerdStatus
-sord_inserter_write_statement(SordInserter*      inserter,
-                              SerdStatementFlags flags,
-                              const SerdNode*    graph,
-                              const SerdNode*    subject,
-                              const SerdNode*    predicate,
-                              const SerdNode*    object,
-                              const SerdNode*    object_datatype,
-                              const SerdNode*    object_lang);
+sord_inserter_write_statement(SordInserter* inserter,
+	SerdStatementFlags flags,
+	const SerdNode* graph,
+	const SerdNode* subject,
+	const SerdNode* predicate,
+	const SerdNode* object,
+	const SerdNode* object_datatype,
+	const SerdNode* object_lang);
 
 /**
    @}
@@ -624,18 +844,18 @@ sord_quad_match(const SordQuad x, const SordQuad y);
 SORD_API
 SerdReader*
 sord_new_reader(SordModel* model,
-                SerdEnv*   env,
-                SerdSyntax syntax,
-                SordNode*  graph);
+	SerdEnv* env,
+	SerdSyntax syntax,
+	SordNode* graph);
 
 /**
    Write a model to a writer.
 */
 SORD_API
 bool
-sord_write(SordModel*  model,
-           SerdWriter* writer,
-           SordNode*   graph);
+sord_write(SordModel* model,
+	SerdWriter* writer,
+	SordNode* graph);
 
 /**
    Write a range to a writer.
@@ -644,8 +864,8 @@ sord_write(SordModel*  model,
 */
 SORD_API
 bool
-sord_write_iter(SordIter*   iter,
-                SerdWriter* writer);
+sord_write_iter(SordIter* iter,
+	SerdWriter* writer);
 
 /**
    @}

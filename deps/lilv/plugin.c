@@ -21,7 +21,7 @@
 
 #include "lilv/lilv.h"
 #include "serd/serd.h"
-#include "sord/sord.h"
+#include "sord.h"
 #include "zix/tree.h"
 
 #include "lv2/core/lv2.h"

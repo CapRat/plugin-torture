@@ -17,7 +17,7 @@
 #include "lilv_internal.h"
 
 #include "lilv/lilv.h"
-#include "sord/sord.h"
+#include "sord.h"
 #include "zix/tree.h"
 
 #include <stdlib.h>
