@@ -19,7 +19,7 @@
 
 #include <iostream>
 #include <cstdlib>
-#include <unistd.h>
+//#include <unistd.h>
 #include <stdio.h>
 #include <xmmintrin.h>
 #include <getopt.h>
@@ -27,7 +27,7 @@
 #include <list>
 #include <stdexcept>
 #include <signal.h>
-#include <boost/optional.hpp>
+//#include <boost/optional.hpp>
 #include "ladspa_plugin.h"
 #include "lv2_plugin.h"
 #include "log.h"
@@ -36,7 +36,6 @@
 #include "input_profile.h"
 
 using namespace std;
-using boost::optional;
 
 static bool abort_on_sigfpe = false;
 int sampling_rate;
@@ -102,7 +101,7 @@ main (int argc, char* argv[])
 	string plugin_file;
 	bool evil = false;
 	bool detect_denormals = false;
-	optional<int> ladspa_index;
+	int* ladspa_index=nullptr;
 
 	enum Type {
 		LADSPA,
@@ -153,7 +152,7 @@ main (int argc, char* argv[])
 			type = LADSPA;
 			break;
 		case 'i':
-			ladspa_index = atoi (optarg);
+			*ladspa_index = atoi (optarg);
 			break;
 		case 'l':
 			type = LV2;
@@ -182,7 +181,7 @@ main (int argc, char* argv[])
 		switch (type) {
 		case LADSPA:
 			if (ladspa_index) {
-				plugins.push_back (new LadspaPlugin (plugin_file, ladspa_index.get()));
+				plugins.push_back (new LadspaPlugin (plugin_file, *ladspa_index));
 			} else {
 				int i = 0;
 				while (true) {

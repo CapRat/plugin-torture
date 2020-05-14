@@ -35,6 +35,7 @@ public:
 	void run (int);
 	void deactivate ();
 
+
 	int audio_inputs () const;
 	int audio_outputs () const;
 	float* input_buffer (int) const;

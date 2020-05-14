@@ -19,14 +19,13 @@
 
 #include "lv2_plugin.h"
 #include "uri_map.h"
-#include <lilv/lilv.h>
-#include <boost/algorithm/string.hpp>
+#include "tools.h"
 #include <stdexcept>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <sstream>
-
+#include <assert.h>
 using namespace std;
 
 class LV2World
@@ -82,7 +81,7 @@ LV2Plugin::LV2Plugin (string const & filename)
 			string path = lilv_uri_to_path (lilv_node_as_string (lilv_nodes_get (uris, j)));
 
 			while (path.find ("//") != string::npos) {
-				boost::replace_all (path, "//", "/");
+				replace_all (path, "//", "/");
 			}
 
 			if (path == filename) {

@@ -21,7 +21,7 @@
 #include <fstream>
 #include <cmath>
 #include <iostream>
-#include <boost/algorithm/string.hpp>
+#include "tools.h"
 #include "log.h"
 #include "plugin.h"
 #include "input_profile.h"
@@ -104,7 +104,8 @@ InputProfile::InputProfile (string const & file)
 		}
 
 		vector<string> bits;
-		boost::split (bits, line, boost::is_any_of (" "));
+		split(line, bits, ' ');
+		
 
 		if (bits.size() < 2) {
 			continue;

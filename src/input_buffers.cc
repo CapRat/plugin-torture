@@ -17,6 +17,7 @@
 
 */
 
+#define _USE_MATH_DEFINES //Just on Windows
 #include <cmath>
 #include <iostream>
 #include "input_buffers.h"

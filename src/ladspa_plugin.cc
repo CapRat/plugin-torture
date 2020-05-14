@@ -17,7 +17,7 @@
 
 */
 
-#include <dlfcn.h>
+#include "lib_loading.h"
 #include <stdlib.h>
 #include <iostream>
 #include <sstream>
@@ -34,14 +34,14 @@ LadspaPlugin::LadspaPlugin (string const & filename, int index)
 	, _controls (0)
 	, _buffers (0)
 {
-	_library = dlopen (filename.c_str (), RTLD_NOW);
+	_library = LoadLib (filename.c_str ());
 	if (_library == 0) {
 		stringstream s;
 		s << "Could not dlopen() " << filename;
 		throw runtime_error (s.str ());
 	}
 
-	LADSPA_Descriptor_Function fn = (LADSPA_Descriptor_Function) dlsym (_library, "ladspa_descriptor");
+	LADSPA_Descriptor_Function fn = LoadFunc< LADSPA_Descriptor_Function>(_library, "ladspa_descriptor");
 	if (fn == 0) {
 		stringstream s;
 		s << "Could not find ladspa_descriptor in " << filename;
@@ -76,7 +76,7 @@ LadspaPlugin::LadspaPlugin (string const & filename, int index)
 LadspaPlugin::~LadspaPlugin ()
 {
 	unprepare ();
-	dlclose (_library);
+	UnloadLib(_library);
 }
 
 void

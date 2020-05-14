@@ -22,23 +22,22 @@
 
 #include <map>
 
-#include <boost/utility.hpp>
 
-#include "lv2.h"
-#include "lv2/lv2plug.in/ns/ext/uri-map/uri-map.h"
-#include "lv2/lv2plug.in/ns/ext/urid/urid.h"
+#include <core/lv2.h>
+#include <uri-map/uri-map.h>
+#include <urid/urid.h>
 
 /** Implementation of the LV2 uri-map and urid extensions.
  *
  * This just uses a pair of std::map and is not so great in the space overhead
  * department, but it's fast enough and not really performance critical anyway.
  */
-class URIMap : public boost::noncopyable {
+class URIMap {
 public:
 	static URIMap& instance();
 
 	URIMap();
-
+	URIMap(const URIMap&) = delete;
 	LV2_Feature* uri_map_feature()    { return &_uri_map_feature; }
 	LV2_Feature* urid_map_feature()   { return &_urid_map_feature; }
 	LV2_Feature* urid_unmap_feature() { return &_urid_unmap_feature; }
