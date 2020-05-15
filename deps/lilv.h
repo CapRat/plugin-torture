@@ -56,8 +56,8 @@
 #endif
 
  
-#include "lv2/core/lv2.h"
-#include "lv2/urid/urid.h"
+#include <core/lv2.h>
+#include <urid/urid.h>
 
 #include "sord.h"
 #include <stdarg.h>

@@ -19,9 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <atom/forge.h>
-#include <atom/util.h>
 #include <midi/midi.h>
 
 #include "sratom.h"

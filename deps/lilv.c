@@ -3,17 +3,17 @@
 #include "sord.h"
 #include "serd.h"
 #include "sratom.h"
-#include "lv2/core/lv2.h"
-#include "lv2/ui/ui.h"
-#include "lv2/atom/atom.h"
-#include "lv2/event/event.h"
-#include "lv2/atom/forge.h"
-#include "lv2/presets/presets.h"
-#include "lv2/state/state.h"
-#include "lv2/urid/urid.h"
+#include <core/lv2.h>
+#include <ui/ui.h>
+#include <atom/atom.h>
+#include <event/event.h>
+#include <atom/forge.h>
+#include <presets/presets.h>
+#include <state/state.h>
+#include <urid/urid.h>
 
 #ifdef LILV_DYN_MANIFEST
-#    include "lv2/dynmanifest/dynmanifest.h"
+#    include <dynmanifest/dynmanifest.h>
 #    include <dlfcn.h>
 #endif
 
