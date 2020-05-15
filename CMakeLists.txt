@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 3.0.0)
 project(TortureTester)
 
+option(TORTURE_TESTER_INSTALL "Installs TortureTester Binary to System" ON)
 
 SET(DEPS_SRC 
 	deps/getopt.c
@@ -30,8 +31,13 @@ add_executable(TortureTester
 	${DEPS_SRC} 
 	#src/vst_plugin.cc
 ${TORTURE_TESTER_SRC})
-target_include_directories(TortureTester PUBLIC src deps deps/lv2 deps/sord deps/serd deps/lilv)
+target_include_directories(TortureTester PRIVATE src deps deps/lv2 deps/sord deps/serd deps/lilv)
 
 if (WIN32)
 	target_compile_definitions(TortureTester PUBLIC __WIN32__)
 endif(WIN32)
+
+if(TORTURE_TESTER_INSTALL)
+install(TARGETS TortureTester EXPORT TortureTestingBin TYPE RUNTIME)
+install(EXPORT TortureTestingBin DESTINATION bin/TortureTester)
+endif(TORTURE_TESTER_INSTALL)
