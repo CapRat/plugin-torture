@@ -27,22 +27,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef SERD_SHARED
-#    ifdef _WIN32
-#        define SERD_LIB_IMPORT __declspec(dllimport)
-#        define SERD_LIB_EXPORT __declspec(dllexport)
-#    else
-#        define SERD_LIB_IMPORT __attribute__((visibility("default")))
-#        define SERD_LIB_EXPORT __attribute__((visibility("default")))
-#    endif
-#    ifdef SERD_INTERNAL
-#        define SERD_API SERD_LIB_EXPORT
-#    else
-#        define SERD_API SERD_LIB_IMPORT
-#    endif
-#else
-#    define SERD_API
-#endif
+#define SERD_API
+
 
 #ifdef __cplusplus
 extern "C" {

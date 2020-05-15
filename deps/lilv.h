@@ -21,9 +21,45 @@
 #ifndef LILV_LILV_H
 #define LILV_LILV_H
 
+#define HAVE_FILENO 1
+#define SERD_VERSION "0.23.0"
+#define HAVE_SERD 1
+#define SORD_VERSION "0.15.1"
+#define HAVE_SORD 1
+#define SRATOM_VERSION "0.4.10"
+#define HAVE_SRATOM 1
+
+#define HAVE_CLOCK_GETTIME 1
+#define LILV_VERSION "0.22.1"
+
+#ifdef __WIN32__
+# define LILV_PATH_SEP ";"
+# define LILV_DIR_SEP "\\"
+#else
+# define LILV_PATH_SEP ":"
+# define LILV_DIR_SEP "/"
+# define HAVE_FLOCK 1
+#endif
+
+#if defined(__APPLE__)
+# define LILV_DEFAULT_LV2_PATH "~/.lv2:~/Library/Audio/Plug-Ins/LV2:/Library/Audio/Plug-Ins/LV2"
+#elif defined(__HAIKU__)
+# define HAVE_POSIX_MEMALIGN 1
+# define LILV_DEFAULT_LV2_PATH "~/.lv2:/boot/common/add-ons/lv2"
+#elif defined(__WIN32__)
+//# define LILV_DEFAULT_LV2_PATH "%APPDATA%\\LV2;%COMMONPROGRAMFILES%\\LV2;%CommonProgramFiles(x86)%\\LV2"
+# define LILV_DEFAULT_LV2_PATH "%APPDATA%\\LV2;%COMMONPROGRAMFILES%\\LV2"
+#else
+# define LILV_DEFAULT_LV2_PATH "~/.lv2:/usr/lib/lv2:/usr/local/lib/lv2"
+# define HAVE_POSIX_MEMALIGN 1
+# define HAVE_POSIX_FADVISE  1
+#endif
+
+ 
 #include "lv2/core/lv2.h"
 #include "lv2/urid/urid.h"
 
+#include "sord.h"
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -56,6 +92,110 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+    /**
+   A balanced binary search tree.
+*/
+    typedef struct ZixTreeImpl ZixTree;
+
+    /**
+       An iterator over a ZixTree.
+    */
+    typedef struct ZixTreeNodeImpl ZixTreeIter;
+
+    /**
+       Create a new (empty) tree.
+    */
+     ZixTree*
+        zix_tree_new(bool           allow_duplicates,
+            ZixComparator  cmp,
+            void* cmp_data,
+            ZixDestroyFunc destroy);
+
+    /**
+       Free `t`.
+    */
+     void
+        zix_tree_free(ZixTree* t);
+
+    /**
+       Return the number of elements in `t`.
+    */
+     size_t
+        zix_tree_size(const ZixTree* t);
+
+    /**
+       Insert the element `e` into `t` and point `ti` at the new element.
+    */
+     ZixStatus
+        zix_tree_insert(ZixTree* t, void* e, ZixTreeIter** ti);
+
+    /**
+       Remove the item pointed at by `ti` from `t`.
+    */
+     ZixStatus
+        zix_tree_remove(ZixTree* t, ZixTreeIter* ti);
+
+    /**
+       Set `ti` to an element equal to `e` in `t`.
+       If no such item exists, `ti` is set to NULL.
+    */
+     ZixStatus
+        zix_tree_find(const ZixTree* t, const void* e, ZixTreeIter** ti);
+
+    /**
+       Return the data associated with the given tree item.
+    */
+     void*
+        zix_tree_get(const ZixTreeIter* ti);
+
+    /**
+       Return an iterator to the first (smallest) element in `t`.
+    */
+     ZixTreeIter*
+        zix_tree_begin(ZixTree* t);
+
+    /**
+       Return an iterator the the element one past the last element in `t`.
+    */
+     ZixTreeIter*
+        zix_tree_end(ZixTree* t);
+
+    /**
+       Return true iff `i` is an iterator to the end of its tree.
+    */
+     bool
+        zix_tree_iter_is_end(const ZixTreeIter* i);
+
+    /**
+       Return an iterator to the last (largest) element in `t`.
+    */
+     ZixTreeIter*
+        zix_tree_rbegin(ZixTree* t);
+
+    /**
+       Return an iterator the the element one before the first element in `t`.
+    */
+     ZixTreeIter*
+        zix_tree_rend(ZixTree* t);
+
+    /**
+       Return true iff `i` is an iterator to the reverse end of its tree.
+    */
+     bool
+        zix_tree_iter_is_rend(const ZixTreeIter* i);
+
+    /**
+       Return an iterator that points to the element one past `i`.
+    */
+     ZixTreeIter*
+        zix_tree_iter_next(ZixTreeIter* i);
+
+    /**
+       Return an iterator that points to the element one before `i`.
+    */
+     ZixTreeIter*
+        zix_tree_iter_prev(ZixTreeIter* i);
+
 
 #define LILV_NS_DOAP "http://usefulinc.com/ns/doap#"
 #define LILV_NS_FOAF "http://xmlns.com/foaf/0.1/"

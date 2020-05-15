@@ -27,7 +27,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "serd/serd.h"
+#include "serd.h"
 
 
 #ifdef __cplusplus

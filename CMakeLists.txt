@@ -1,43 +1,18 @@
 cmake_minimum_required (VERSION 3.0.0)
 project(TortureTester)
-SET(LILV_SRC 
-	deps/lilv/collections.c
-	deps/lilv/instance.c
-	deps/lilv/lib.c
-	deps/lilv/node.c
-	deps/lilv/plugin.c
-	deps/lilv/pluginclass.c
-	deps/lilv/port.c
-	deps/lilv/query.c
-	deps/lilv/scalepoint.c
-	deps/lilv/state.c
-	deps/lilv/ui.c
-	deps/lilv/util.c
-	deps/lilv/world.c
-	deps/lilv/zix/tree.c
-)
-SET(SERD_SRC  
-	deps/serd/byte_source.c
-	deps/serd/env.c
-	deps/serd/n3.c
-	deps/serd/node.c
-	deps/serd/reader.c
-	deps/serd/string.c
-	deps/serd/uri.c
-	deps/serd/writer.c
-)
-SET(SORD_SRC
-	deps/sord.c
-	deps/sord.h
-)
 
-SET(SRATOM_SRC
-	deps/sratom/sratom.c
-)
 
 SET(DEPS_SRC 
 	deps/getopt.c
-	${LILV_SRC} ${SERD_SRC} ${SORD_SRC} ${SRATOM_SRC}
+	deps/getopt.h
+	deps/sratom.c
+	deps/sratom.h
+	deps/sord.c
+	deps/sord.h
+	deps/serd.c
+	deps/serd.h
+	deps/lilv.h
+	deps/lilv.c
 )
 
 add_executable(TortureTester 

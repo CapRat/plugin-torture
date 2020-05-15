@@ -18,7 +18,7 @@
 */
 
 #include <vector>
-#include <lilv/lilv.h>
+#include <lilv.h>
 #include "plugin.h"
 
 class URIMap;

@@ -24,7 +24,7 @@
 #include <atom/util.h>
 #include <midi/midi.h>
 
-#include "sratom/sratom.h"
+#include "sratom.h"
 
 #define NS_RDF (const uint8_t*)"http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 #define NS_XSD (const uint8_t*)"http://www.w3.org/2001/XMLSchema#"

@@ -24,7 +24,7 @@
 #include "lv2/atom/atom.h"
 #include "lv2/atom/forge.h"
 #include "lv2/urid/urid.h"
-#include "serd/serd.h"
+#include "serd.h"
 #include "sord.h"
 
 #include <stdbool.h>

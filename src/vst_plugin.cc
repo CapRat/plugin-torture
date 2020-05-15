@@ -1,17 +1,17 @@
 #include "vst_plugin.h"
-
+#include "lib_loading.h"
 using namespace std;
 
 VSTPlugin::VSTPlugin (string const & filename)
 {
-	_library = dlopen (filename.c_str(), RTLD_LOCAL | RTLD_LAZY);
+	_library = LoadLib (filename.c_str());
 	if (_library == 0) {
 		stringstream s;
 		s << "Could not load VST plugin " << filename;
 		throw runtime_error (s.str ());
 	}
 
-	if (_main_entry = (main_entry_t) dlsym (_library, "main") == 0) {
+	if (_main_entry = (main_entry_t) LoadFunc (_library, "main") == 0) {
 		stringstream s;
 		s << "Could not find VST entry point in " << filename;
 		throw runtime_error (s.str ());
@@ -20,7 +20,7 @@ VSTPlugin::VSTPlugin (string const & filename)
 
 VSTPlugin::~VSTPlugin ()
 {
-	dlclose (_library);
+	UnloadLib (_library);
 }
 
 void
