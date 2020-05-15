@@ -44,5 +44,5 @@ endif(WIN32)
 
 if(TORTURE_TESTER_INSTALL)
 install(TARGETS TortureTester EXPORT TortureTestingBin DESTINATION bin)
-install(EXPORT TortureTestingBin DESTINATION bin/TortureTester)
+install(EXPORT TortureTestingBin DESTINATION cmake)
 endif(TORTURE_TESTER_INSTALL)
