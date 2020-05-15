@@ -4,34 +4,37 @@ project(TortureTester)
 option(TORTURE_TESTER_INSTALL "Installs TortureTester Binary to System" ON)
 
 SET(DEPS_SRC 
-	deps/getopt.c
-	deps/getopt.h
-	deps/sratom.c
-	deps/sratom.h
-	deps/sord.c
-	deps/sord.h
-	deps/serd.c
-	deps/serd.h
-	deps/lilv.h
-	deps/lilv.c
+	${CMAKE_CURRENT_LIST_DIR}/deps/getopt.c
+	${CMAKE_CURRENT_LIST_DIR}/deps/getopt.h
+	${CMAKE_CURRENT_LIST_DIR}/deps/sratom.c
+	${CMAKE_CURRENT_LIST_DIR}/deps/sratom.h
+	${CMAKE_CURRENT_LIST_DIR}/deps/sord.c
+	${CMAKE_CURRENT_LIST_DIR}/deps/sord.h
+	${CMAKE_CURRENT_LIST_DIR}/deps/serd.c
+	${CMAKE_CURRENT_LIST_DIR}/deps/serd.h
+	${CMAKE_CURRENT_LIST_DIR}/deps/lilv.h
+	${CMAKE_CURRENT_LIST_DIR}/deps/lilv.c
 )
 
 add_executable(TortureTester 
-	src/input_buffers.cc
-	src/input_profile.cc
-	src/ladspa_plugin.cc
-	src/lib_loading.cc
-	src/log.cc
-	src/lv2_plugin.cc
-	src/main.cc
-	src/plugin.cc
-	src/tests.cc
-	src/uri_map.cc
-	src/tools.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/input_buffers.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/input_profile.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/ladspa_plugin.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/lib_loading.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/log.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/lv2_plugin.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/main.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/plugin.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/tests.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/uri_map.cc
+	${CMAKE_CURRENT_LIST_DIR}/src/tools.cc
 	${DEPS_SRC} 
 	#src/vst_plugin.cc
 ${TORTURE_TESTER_SRC})
-target_include_directories(TortureTester PRIVATE src deps deps/lv2 deps/sord deps/serd deps/lilv)
+target_include_directories(TortureTester PRIVATE 
+${CMAKE_CURRENT_LIST_DIR}/src 
+${CMAKE_CURRENT_LIST_DIR}/deps 
+${CMAKE_CURRENT_LIST_DIR}/deps/lv2 )
 
 if (WIN32)
 	target_compile_definitions(TortureTester PUBLIC __WIN32__)
