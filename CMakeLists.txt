@@ -41,6 +41,6 @@ if (WIN32)
 endif(WIN32)
 
 if(TORTURE_TESTER_INSTALL)
-install(TARGETS TortureTester EXPORT TortureTestingBin TYPE RUNTIME)
+install(TARGETS TortureTester EXPORT TortureTestingBin DESTINATION bin)
 install(EXPORT TortureTestingBin DESTINATION bin/TortureTester)
 endif(TORTURE_TESTER_INSTALL)
