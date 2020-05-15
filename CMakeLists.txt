@@ -38,6 +38,8 @@ ${CMAKE_CURRENT_LIST_DIR}/deps/lv2 )
 
 if (WIN32)
 	target_compile_definitions(TortureTester PUBLIC __WIN32__)
+else()
+        target_link_libraries(TortureTester dl)
 endif(WIN32)
 
 if(TORTURE_TESTER_INSTALL)
