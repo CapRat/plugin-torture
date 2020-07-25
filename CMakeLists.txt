@@ -6,14 +6,9 @@ option(TORTURE_TESTER_INSTALL "Installs TortureTester Binary to System" ON)
 SET(DEPS_SRC 
 	${CMAKE_CURRENT_LIST_DIR}/deps/getopt.c
 	${CMAKE_CURRENT_LIST_DIR}/deps/getopt.h
-	${CMAKE_CURRENT_LIST_DIR}/deps/sratom.c
-	${CMAKE_CURRENT_LIST_DIR}/deps/sratom.h
-	${CMAKE_CURRENT_LIST_DIR}/deps/sord.c
-	${CMAKE_CURRENT_LIST_DIR}/deps/sord.h
-	${CMAKE_CURRENT_LIST_DIR}/deps/serd.c
-	${CMAKE_CURRENT_LIST_DIR}/deps/serd.h
 	${CMAKE_CURRENT_LIST_DIR}/deps/lilv.h
 	${CMAKE_CURRENT_LIST_DIR}/deps/lilv.c
+#	${CMAKE_CURRENT_LIST_DIR}/deps/serd.c
 )
 
 add_executable(TortureTester 

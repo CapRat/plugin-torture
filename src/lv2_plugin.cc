@@ -83,6 +83,7 @@ LV2Plugin::LV2Plugin (string const & filename)
 		const LilvPlugin* p = lilv_plugins_get(plugins, i);
 		LilvNodes const * uris = lilv_plugin_get_data_uris (p);
 		LILV_FOREACH (nodes, j, uris) {
+
 			string path = lilv_uri_to_path (lilv_node_as_string (lilv_nodes_get (uris, j)));
 			std::cout << path << std::endl;
 			while (path.find ("//") != string::npos) {

@@ -22,14 +22,7 @@
 #define LILV_LILV_H
 
 #define HAVE_FILENO 1
-#define SERD_VERSION "0.23.0"
-#define HAVE_SERD 1
-#define SORD_VERSION "0.15.1"
-#define HAVE_SORD 1
-#define SRATOM_VERSION "0.4.10"
-#define HAVE_SRATOM 1
 
-#define HAVE_CLOCK_GETTIME 1
 #define LILV_VERSION "0.22.1"
 
 #ifdef __WIN32__
@@ -59,13 +52,19 @@
 #include <core/lv2.h>
 #include <urid/urid.h>
 
-#include "sord.h"
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 
+#define SERD_API
+#define ZIX_API
+#define ZIX_PRIVATE
+#define SORD_API
 #ifdef LILV_SHARED
 #    ifdef _WIN32
 #        define LILV_LIB_IMPORT __declspec(dllimport)
@@ -92,6 +91,1876 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+
+		/**
+		   @defgroup serd Serd
+		   A lightweight RDF syntax library.
+		   @{
+		*/
+
+		/**
+		   Environment.
+
+		   Represents the state required to resolve a CURIE or relative URI, e.g. the
+		   base URI and set of namespace prefixes at a particular point.
+		*/
+		typedef struct SerdEnvImpl SerdEnv;
+
+		/**
+		   RDF reader.
+
+		   Parses RDF by calling user-provided sink functions as input is consumed
+		   (much like an XML SAX parser).
+		*/
+		typedef struct SerdReaderImpl SerdReader;
+
+		/**
+		   RDF writer.
+
+		   Provides a number of functions to allow writing RDF syntax out to some
+		   stream.  These functions are deliberately compatible with the sink functions
+		   used by SerdReader, so a reader can be directly connected to a writer to
+		   re-serialise a document with minimal overhead.
+		*/
+		typedef struct SerdWriterImpl SerdWriter;
+
+		/**
+		   Return status code.
+		*/
+		typedef enum {
+			SERD_SUCCESS,         /**< No error */
+			SERD_FAILURE,         /**< Non-fatal failure */
+			SERD_ERR_UNKNOWN,     /**< Unknown error */
+			SERD_ERR_BAD_SYNTAX,  /**< Invalid syntax */
+			SERD_ERR_BAD_ARG,     /**< Invalid argument */
+			SERD_ERR_NOT_FOUND,   /**< Not found */
+			SERD_ERR_ID_CLASH,    /**< Encountered clashing blank node IDs */
+			SERD_ERR_BAD_CURIE,   /**< Invalid CURIE (e.g. prefix does not exist) */
+			SERD_ERR_INTERNAL     /**< Unexpected internal error (should not happen) */
+		} SerdStatus;
+
+		/**
+		   RDF syntax type.
+		*/
+		typedef enum {
+			/**
+			   Turtle - Terse RDF Triple Language (UTF-8).
+			   @see <a href="http://www.w3.org/TeamSubmission/turtle/">Turtle</a>
+			*/
+			SERD_TURTLE = 1,
+
+			/**
+			   NTriples - Line-based RDF triples (ASCII).
+			   @see <a href="http://www.w3.org/TR/rdf-testcases#ntriples">NTriples</a>
+			*/
+			SERD_NTRIPLES = 2,
+
+			/**
+			   NQuads - Line-based RDF quads (UTF-8).
+			   @see <a href="https://www.w3.org/TR/n-quads/">NQuads</a>
+			*/
+			SERD_NQUADS = 3,
+
+			/**
+			   TriG - Terse RDF quads (UTF-8).
+			   @see <a href="https://www.w3.org/TR/trig/">Trig</a>
+			*/
+			SERD_TRIG = 4
+		} SerdSyntax;
+
+		/**
+		   Flags indicating inline abbreviation information for a statement.
+		*/
+		typedef enum {
+			SERD_EMPTY_S = 1 << 1,  /**< Empty blank node subject */
+			SERD_EMPTY_O = 1 << 2,  /**< Empty blank node object */
+			SERD_ANON_S_BEGIN = 1 << 3,  /**< Start of anonymous subject */
+			SERD_ANON_O_BEGIN = 1 << 4,  /**< Start of anonymous object */
+			SERD_ANON_CONT = 1 << 5,  /**< Continuation of anonymous node */
+			SERD_LIST_S_BEGIN = 1 << 6,  /**< Start of list subject */
+			SERD_LIST_O_BEGIN = 1 << 7,  /**< Start of list object */
+			SERD_LIST_CONT = 1 << 8   /**< Continuation of list */
+		} SerdStatementFlag;
+
+		/**
+		   Bitwise OR of SerdStatementFlag values.
+		*/
+		typedef uint32_t SerdStatementFlags;
+
+		/**
+		   Type of a syntactic RDF node.
+
+		   This is more precise than the type of an abstract RDF node.  An abstract
+		   node is either a resource, literal, or blank.  In syntax there are two ways
+		   to refer to a resource (by URI or CURIE) and two ways to refer to a blank
+		   (by ID or anonymously).  Anonymous (inline) blank nodes are expressed using
+		   SerdStatementFlags rather than this type.
+		*/
+		typedef enum {
+			/**
+			   The type of a nonexistent node.
+
+			   This type is useful as a sentinel, but is never emitted by the reader.
+			*/
+			SERD_NOTHING = 0,
+
+			/**
+			   Literal value.
+
+			   A literal optionally has either a language, or a datatype (not both).
+			*/
+			SERD_LITERAL = 1,
+
+			/**
+			   URI (absolute or relative).
+
+			   Value is an unquoted URI string, which is either a relative reference
+			   with respect to the current base URI (e.g. "foo/bar"), or an absolute
+			   URI (e.g. "http://example.org/foo").
+			   @see <a href="http://tools.ietf.org/html/rfc3986">RFC3986</a>.
+			*/
+			SERD_URI = 2,
+
+			/**
+			   CURIE, a shortened URI.
+
+			   Value is an unquoted CURIE string relative to the current environment,
+			   e.g. "rdf:type".
+			   @see <a href="http://www.w3.org/TR/curie">CURIE Syntax 1.0</a>
+			*/
+			SERD_CURIE = 3,
+
+			/**
+			   A blank node.
+
+			   Value is a blank node ID, e.g. "id3", which is meaningful only within
+			   this serialisation.
+			   @see <a href="http://www.w3.org/TeamSubmission/turtle#nodeID">Turtle
+			   <tt>nodeID</tt></a>
+			*/
+			SERD_BLANK = 4
+		} SerdType;
+
+		/**
+		   Flags indicating certain string properties relevant to serialisation.
+		*/
+		typedef enum {
+			SERD_HAS_NEWLINE = 1,      /**< Contains line breaks ('\\n' or '\\r') */
+			SERD_HAS_QUOTE = 1 << 1  /**< Contains quotes ('"') */
+		} SerdNodeFlag;
+
+		/**
+		   Bitwise OR of SerdNodeFlag values.
+		*/
+		typedef uint32_t SerdNodeFlags;
+
+		/**
+		   A syntactic RDF node.
+		*/
+		typedef struct {
+			const uint8_t* buf;      /**< Value string */
+			size_t         n_bytes;  /**< Size in bytes (not including null) */
+			size_t         n_chars;  /**< Length in characters (not including null)*/
+			SerdNodeFlags  flags;    /**< Node flags (e.g. string properties) */
+			SerdType       type;     /**< Node type */
+		} SerdNode;
+
+		/**
+		   An unterminated string fragment.
+		*/
+		typedef struct {
+			const uint8_t* buf;  /**< Start of chunk */
+			size_t         len;  /**< Length of chunk in bytes */
+		} SerdChunk;
+
+		/**
+		   An error description.
+		*/
+		typedef struct {
+			SerdStatus     status;    /**< Error code */
+			const uint8_t* filename;  /**< File where error was encountered, or NULL */
+			unsigned       line;      /**< Line where error was encountered, or 0 */
+			unsigned       col;       /**< Column where error was encountered */
+			const char* fmt;       /**< Message format string (printf style) */
+			va_list* args;      /**< Arguments for fmt */
+		} SerdError;
+
+		/**
+		   A parsed URI.
+
+		   This struct directly refers to chunks in other strings, it does not own any
+		   memory itself.  Thus, URIs can be parsed and/or resolved against a base URI
+		   in-place without allocating memory.
+		*/
+		typedef struct {
+			SerdChunk scheme;     /**< Scheme */
+			SerdChunk authority;  /**< Authority */
+			SerdChunk path_base;  /**< Path prefix if relative */
+			SerdChunk path;       /**< Path suffix */
+			SerdChunk query;      /**< Query */
+			SerdChunk fragment;   /**< Fragment */
+		} SerdURI;
+
+		/**
+		   Syntax style options.
+
+		   The style of the writer output can be controlled by ORing together
+		   values from this enumeration.  Note that some options are only supported
+		   for some syntaxes (e.g. NTriples does not support abbreviation and is
+		   always ASCII).
+		*/
+		typedef enum {
+			SERD_STYLE_ABBREVIATED = 1,       /**< Abbreviate triples when possible. */
+			SERD_STYLE_ASCII = 1 << 1,  /**< Escape all non-ASCII characters. */
+			SERD_STYLE_RESOLVED = 1 << 2,  /**< Resolve URIs against base URI. */
+			SERD_STYLE_CURIED = 1 << 3,  /**< Shorten URIs into CURIEs. */
+			SERD_STYLE_BULK = 1 << 4   /**< Write output in pages. */
+		} SerdStyle;
+
+		/**
+		   Free memory allocated by Serd.
+
+		   This function exists because some systems require memory allocated by a
+		   library to be freed by code in the same library.  It is otherwise equivalent
+		   to the standard C free() function.
+		*/
+		SERD_API
+			void
+			serd_free(void* ptr);
+
+		/**
+		   @name String Utilities
+		   @{
+		*/
+
+		/**
+		   Return a string describing a status code.
+		*/
+		SERD_API
+			const uint8_t*
+			serd_strerror(SerdStatus status);
+
+		/**
+		   Measure a UTF-8 string.
+		   @return Length of `str` in characters (except NULL).
+		   @param str A null-terminated UTF-8 string.
+		   @param n_bytes (Output) Set to the size of `str` in bytes (except NULL).
+		   @param flags (Output) Set to the applicable flags.
+		*/
+		SERD_API
+			size_t
+			serd_strlen(const uint8_t* str, size_t* n_bytes, SerdNodeFlags* flags);
+
+		/**
+		   Parse a string to a double.
+
+		   The API of this function is identical to the standard C strtod function,
+		   except this function is locale-independent and always matches the lexical
+		   format used in the Turtle grammar (the decimal point is always ".").
+		*/
+		SERD_API
+			double
+			serd_strtod(const char* str, char** endptr);
+
+		/**
+		   Decode a base64 string.
+		   This function can be used to deserialise a blob node created with
+		   serd_node_new_blob().
+
+		   @param str Base64 string to decode.
+		   @param len The length of `str`.
+		   @param size Set to the size of the returned blob in bytes.
+		   @return A newly allocated blob which must be freed with serd_free().
+		*/
+		SERD_API
+			void*
+			serd_base64_decode(const uint8_t* str, size_t len, size_t* size);
+
+		/**
+		   @}
+		   @name Byte Streams
+		   @{
+		*/
+
+		/**
+		   Function to detect I/O stream errors.
+
+		   Identical semantics to `ferror`.
+
+		   @return Non-zero if `stream` has encountered an error.
+		*/
+		typedef int (*SerdStreamErrorFunc)(void* stream);
+
+		/**
+		   Source function for raw string input.
+
+		   Identical semantics to `fread`, but may set errno for more informative error
+		   reporting than supported by SerdStreamErrorFunc.
+
+		   @param buf Output buffer.
+		   @param size Size of a single element of data in bytes (always 1).
+		   @param nmemb Number of elements to read.
+		   @param stream Stream to read from (FILE* for fread).
+		   @return Number of elements (bytes) read.
+		*/
+		typedef size_t(*SerdSource)(void* buf,
+			size_t size,
+			size_t nmemb,
+			void* stream);
+
+		/**
+		   Sink function for raw string output.
+		*/
+		typedef size_t(*SerdSink)(const void* buf, size_t len, void* stream);
+
+		/**
+		   @}
+		   @name URI
+		   @{
+		*/
+
+		static const SerdURI SERD_URI_NULL = {
+			{NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}
+		};
+
+		/**
+		   Return the local path for `uri`, or NULL if `uri` is not a file URI.
+		   Note this (inappropriately named) function only removes the file scheme if
+		   necessary, and returns `uri` unmodified if it is an absolute path.  Percent
+		   encoding and other issues are not handled, to properly convert a file URI to
+		   a path, use serd_file_uri_parse().
+		*/
+		SERD_API
+			const uint8_t*
+			serd_uri_to_path(const uint8_t* uri);
+
+		/**
+		   Get the unescaped path and hostname from a file URI.
+		   @param uri A file URI.
+		   @param hostname If non-NULL, set to the hostname, if present.
+		   @return The path component of the URI.
+
+		   The returned path and `*hostname` must be freed with serd_free().
+		*/
+		SERD_API
+			uint8_t*
+			serd_file_uri_parse(const uint8_t* uri, uint8_t** hostname);
+
+		/**
+		   Return true iff `utf8` starts with a valid URI scheme.
+		*/
+		SERD_API
+			bool
+			serd_uri_string_has_scheme(const uint8_t* utf8);
+
+		/**
+		   Parse `utf8`, writing result to `out`.
+		*/
+		SERD_API
+			SerdStatus
+			serd_uri_parse(const uint8_t* utf8, SerdURI* out);
+
+		/**
+		   Set target `t` to reference `r` resolved against `base`.
+
+		   @see http://tools.ietf.org/html/rfc3986#section-5.2.2
+		*/
+		SERD_API
+			void
+			serd_uri_resolve(const SerdURI* r, const SerdURI* base, SerdURI* t);
+
+		/**
+		   Serialise `uri` with a series of calls to `sink`.
+		*/
+		SERD_API
+			size_t
+			serd_uri_serialise(const SerdURI* uri, SerdSink sink, void* stream);
+
+		/**
+		   Serialise `uri` relative to `base` with a series of calls to `sink`.
+
+		   The `uri` is written as a relative URI iff if it a child of `base` and @c
+		   root.  The optional `root` parameter must be a prefix of `base` and can be
+		   used keep up-references ("../") within a certain namespace.
+		*/
+		SERD_API
+			size_t
+			serd_uri_serialise_relative(const SerdURI* uri,
+				const SerdURI* base,
+				const SerdURI* root,
+				SerdSink       sink,
+				void* stream);
+
+		/**
+		   @}
+		   @name Node
+		   @{
+		*/
+
+		static const SerdNode SERD_NODE_NULL = { NULL, 0, 0, 0, SERD_NOTHING };
+
+		/**
+		   Make a (shallow) node from `str`.
+
+		   This measures, but does not copy, `str`.  No memory is allocated.
+		*/
+		SERD_API
+			SerdNode
+			serd_node_from_string(SerdType type, const uint8_t* str);
+
+		/**
+		   Make a (shallow) node from a prefix of `str`.
+
+		   This measures, but does not copy, `str`.  No memory is allocated.
+		   Note that the returned node may not be null terminated.
+		*/
+		SERD_API
+			SerdNode
+			serd_node_from_substring(SerdType type, const uint8_t* str, size_t len);
+
+		/**
+		   Make a deep copy of `node`.
+
+		   @return a node that the caller must free with serd_node_free().
+		*/
+		SERD_API
+			SerdNode
+			serd_node_copy(const SerdNode* node);
+
+		/**
+		   Return true iff `a` is equal to `b`.
+		*/
+		SERD_API
+			bool
+			serd_node_equals(const SerdNode* a, const SerdNode* b);
+
+		/**
+		   Simple wrapper for serd_node_new_uri() to resolve a URI node.
+		*/
+		SERD_API
+			SerdNode
+			serd_node_new_uri_from_node(const SerdNode* uri_node,
+				const SerdURI* base,
+				SerdURI* out);
+
+		/**
+		   Simple wrapper for serd_node_new_uri() to resolve a URI string.
+		*/
+		SERD_API
+			SerdNode
+			serd_node_new_uri_from_string(const uint8_t* str,
+				const SerdURI* base,
+				SerdURI* out);
+
+		/**
+		   Create a new file URI node from a file system path and optional hostname.
+
+		   Backslashes in Windows paths will be converted and '%' will always be
+		   percent encoded.  If `escape` is true, all other invalid characters will be
+		   percent encoded as well.
+
+		   If `path` is relative, `hostname` is ignored.
+		   If `out` is not NULL, it will be set to the parsed URI.
+		*/
+		SERD_API
+			SerdNode
+			serd_node_new_file_uri(const uint8_t* path,
+				const uint8_t* hostname,
+				SerdURI* out,
+				bool           escape);
+
+		/**
+		   Create a new node by serialising `uri` into a new string.
+
+		   @param uri The URI to serialise.
+
+		   @param base Base URI to resolve `uri` against (or NULL for no resolution).
+
+		   @param out Set to the parsing of the new URI (i.e. points only to
+		   memory owned by the new returned node).
+		*/
+		SERD_API
+			SerdNode
+			serd_node_new_uri(const SerdURI* uri, const SerdURI* base, SerdURI* out);
+
+		/**
+		   Create a new node by serialising `uri` into a new relative URI.
+
+		   @param uri The URI to serialise.
+
+		   @param base Base URI to make `uri` relative to, if possible.
+
+		   @param root Root URI for resolution (see serd_uri_serialise_relative()).
+
+		   @param out Set to the parsing of the new URI (i.e. points only to
+		   memory owned by the new returned node).
+		*/
+		SERD_API
+			SerdNode
+			serd_node_new_relative_uri(const SerdURI* uri,
+				const SerdURI* base,
+				const SerdURI* root,
+				SerdURI* out);
+
+		/**
+		   Create a new node by serialising `d` into an xsd:decimal string.
+
+		   The resulting node will always contain a `.', start with a digit, and end
+		   with a digit (i.e. will have a leading and/or trailing `0' if necessary).
+		   It will never be in scientific notation.  A maximum of `frac_digits` digits
+		   will be written after the decimal point, but trailing zeros will
+		   automatically be omitted (except one if `d` is a round integer).
+
+		   Note that about 16 and 8 fractional digits are required to precisely
+		   represent a double and float, respectively.
+
+		   @param d The value for the new node.
+		   @param frac_digits The maximum number of digits after the decimal place.
+		*/
+		SERD_API
+			SerdNode
+			serd_node_new_decimal(double d, unsigned frac_digits);
+
+		/**
+		   Create a new node by serialising `i` into an xsd:integer string.
+		*/
+		SERD_API
+			SerdNode
+			serd_node_new_integer(int64_t i);
+
+		/**
+		   Create a node by serialising `buf` into an xsd:base64Binary string.
+		   This function can be used to make a serialisable node out of arbitrary
+		   binary data, which can be decoded using serd_base64_decode().
+
+		   @param buf Raw binary input data.
+		   @param size Size of `buf`.
+		   @param wrap_lines Wrap lines at 76 characters to conform to RFC 2045.
+		*/
+		SERD_API
+			SerdNode
+			serd_node_new_blob(const void* buf, size_t size, bool wrap_lines);
+
+		/**
+		   Free any data owned by `node`.
+
+		   Note that if `node` is itself dynamically allocated (which is not the case
+		   for nodes created internally by serd), it will not be freed.
+		*/
+		SERD_API
+			void
+			serd_node_free(SerdNode* node);
+
+		/**
+		   @}
+		   @name Event Handlers
+		   @{
+		*/
+
+		/**
+		   Sink (callback) for errors.
+
+		   @param handle Handle for user data.
+		   @param error Error description.
+		*/
+		typedef SerdStatus(*SerdErrorSink)(void* handle,
+			const SerdError* error);
+
+		/**
+		   Sink (callback) for base URI changes.
+
+		   Called whenever the base URI of the serialisation changes.
+		*/
+		typedef SerdStatus(*SerdBaseSink)(void* handle,
+			const SerdNode* uri);
+
+		/**
+		   Sink (callback) for namespace definitions.
+
+		   Called whenever a prefix is defined in the serialisation.
+		*/
+		typedef SerdStatus(*SerdPrefixSink)(void* handle,
+			const SerdNode* name,
+			const SerdNode* uri);
+
+		/**
+		   Sink (callback) for statements.
+
+		   Called for every RDF statement in the serialisation.
+		*/
+		typedef SerdStatus(*SerdStatementSink)(void* handle,
+			SerdStatementFlags flags,
+			const SerdNode* graph,
+			const SerdNode* subject,
+			const SerdNode* predicate,
+			const SerdNode* object,
+			const SerdNode* object_datatype,
+			const SerdNode* object_lang);
+
+		/**
+		   Sink (callback) for anonymous node end markers.
+
+		   This is called to indicate that the anonymous node with the given
+		   `value` will no longer be referred to by any future statements
+		   (i.e. the anonymous serialisation of the node is finished).
+		*/
+		typedef SerdStatus(*SerdEndSink)(void* handle,
+			const SerdNode* node);
+
+		/**
+		   @}
+		   @name Environment
+		   @{
+		*/
+
+		/**
+		   Create a new environment.
+		*/
+		SERD_API
+			SerdEnv*
+			serd_env_new(const SerdNode* base_uri);
+
+		/**
+		   Free `ns`.
+		*/
+		SERD_API
+			void
+			serd_env_free(SerdEnv* env);
+
+		/**
+		   Get the current base URI.
+		*/
+		SERD_API
+			const SerdNode*
+			serd_env_get_base_uri(const SerdEnv* env,
+				SerdURI* out);
+
+		/**
+		   Set the current base URI.
+		*/
+		SERD_API
+			SerdStatus
+			serd_env_set_base_uri(SerdEnv* env,
+				const SerdNode* uri);
+
+		/**
+		   Set a namespace prefix.
+		*/
+		SERD_API
+			SerdStatus
+			serd_env_set_prefix(SerdEnv* env,
+				const SerdNode* name,
+				const SerdNode* uri);
+
+		/**
+		   Set a namespace prefix.
+		*/
+		SERD_API
+			SerdStatus
+			serd_env_set_prefix_from_strings(SerdEnv* env,
+				const uint8_t* name,
+				const uint8_t* uri);
+
+		/**
+		   Qualify `uri` into a CURIE if possible.
+		*/
+		SERD_API
+			bool
+			serd_env_qualify(const SerdEnv* env,
+				const SerdNode* uri,
+				SerdNode* prefix,
+				SerdChunk* suffix);
+
+		/**
+		   Expand `curie`.
+
+		   Errors: SERD_ERR_BAD_ARG if `curie` is not valid, or SERD_ERR_BAD_CURIE if
+		   prefix is not defined in `env`.
+		*/
+		SERD_API
+			SerdStatus
+			serd_env_expand(const SerdEnv* env,
+				const SerdNode* curie,
+				SerdChunk* uri_prefix,
+				SerdChunk* uri_suffix);
+
+		/**
+		   Expand `node`, which must be a CURIE or URI, to a full URI.
+
+		   Returns null if `node` can not be expanded.
+		*/
+		SERD_API
+			SerdNode
+			serd_env_expand_node(const SerdEnv* env,
+				const SerdNode* node);
+
+		/**
+		   Call `func` for each prefix defined in `env`.
+		*/
+		SERD_API
+			void
+			serd_env_foreach(const SerdEnv* env,
+				SerdPrefixSink func,
+				void* handle);
+
+		/**
+		   @}
+		   @name Reader
+		   @{
+		*/
+
+		/**
+		   Create a new RDF reader.
+		*/
+		SERD_API
+			SerdReader*
+			serd_reader_new(SerdSyntax        syntax,
+				void* handle,
+				void              (*free_handle)(void*),
+				SerdBaseSink      base_sink,
+				SerdPrefixSink    prefix_sink,
+				SerdStatementSink statement_sink,
+				SerdEndSink       end_sink);
+
+		/**
+		   Enable or disable strict parsing.
+
+		   The reader is non-strict (lax) by default, which will tolerate URIs with
+		   invalid characters.  Setting strict will fail when parsing such files.  An
+		   error is printed for invalid input in either case.
+		*/
+		SERD_API
+			void
+			serd_reader_set_strict(SerdReader* reader, bool strict);
+
+		/**
+		   Set a function to be called when errors occur during reading.
+
+		   The `error_sink` will be called with `handle` as its first argument.  If
+		   no error function is set, errors are printed to stderr in GCC style.
+		*/
+		SERD_API
+			void
+			serd_reader_set_error_sink(SerdReader* reader,
+				SerdErrorSink error_sink,
+				void* error_handle);
+
+		/**
+		   Return the `handle` passed to serd_reader_new().
+		*/
+		SERD_API
+			void*
+			serd_reader_get_handle(const SerdReader* reader);
+
+		/**
+		   Set a prefix to be added to all blank node identifiers.
+
+		   This is useful when multiple files are to be parsed into the same output
+		   (e.g. a store, or other files).  Since Serd preserves blank node IDs, this
+		   could cause conflicts where two non-equivalent blank nodes are merged,
+		   resulting in corrupt data.  By setting a unique blank node prefix for each
+		   parsed file, this can be avoided, while preserving blank node names.
+		*/
+		SERD_API
+			void
+			serd_reader_add_blank_prefix(SerdReader* reader,
+				const uint8_t* prefix);
+
+		/**
+		   Set the URI of the default graph.
+
+		   If this is set, the reader will emit quads with the graph set to the given
+		   node for any statements that are not in a named graph (which is currently
+		   all of them since Serd currently does not support any graph syntaxes).
+		*/
+		SERD_API
+			void
+			serd_reader_set_default_graph(SerdReader* reader,
+				const SerdNode* graph);
+
+		/**
+		   Read a file at a given `uri`.
+		*/
+		SERD_API
+			SerdStatus
+			serd_reader_read_file(SerdReader* reader,
+				const uint8_t* uri);
+
+		/**
+		   Start an incremental read from a file handle.
+
+		   Iff `bulk` is true, `file` will be read a page at a time.  This is more
+		   efficient, but uses a page of memory and means that an entire page of input
+		   must be ready before any callbacks will fire.  To react as soon as input
+		   arrives, set `bulk` to false.
+		*/
+		SERD_API
+			SerdStatus
+			serd_reader_start_stream(SerdReader* reader,
+				FILE* file,
+				const uint8_t* name,
+				bool           bulk);
+
+		/**
+		   Start an incremental read from a user-specified source.
+
+		   The `read_func` is guaranteed to only be called for `page_size` elements
+		   with size 1 (i.e. `page_size` bytes).
+		*/
+		SERD_API
+			SerdStatus
+			serd_reader_start_source_stream(SerdReader* reader,
+				SerdSource          read_func,
+				SerdStreamErrorFunc error_func,
+				void* stream,
+				const uint8_t* name,
+				size_t              page_size);
+
+		/**
+		   Read a single "chunk" of data during an incremental read.
+
+		   This function will read a single top level description, and return.  This
+		   may be a directive, statement, or several statements; essentially it reads
+		   until a '.' is encountered.  This is particularly useful for reading
+		   directly from a pipe or socket.
+		*/
+		SERD_API
+			SerdStatus
+			serd_reader_read_chunk(SerdReader* reader);
+
+		/**
+		   Finish an incremental read from a file handle.
+		*/
+		SERD_API
+			SerdStatus
+			serd_reader_end_stream(SerdReader* reader);
+
+		/**
+		   Read `file`.
+		*/
+		SERD_API
+			SerdStatus
+			serd_reader_read_file_handle(SerdReader* reader,
+				FILE* file,
+				const uint8_t* name);
+
+		/**
+		   Read a user-specified byte source.
+		*/
+		SERD_API
+			SerdStatus
+			serd_reader_read_source(SerdReader* reader,
+				SerdSource          source,
+				SerdStreamErrorFunc error,
+				void* stream,
+				const uint8_t* name,
+				size_t              page_size);
+
+		/**
+		   Read `utf8`.
+		*/
+		SERD_API
+			SerdStatus
+			serd_reader_read_string(SerdReader* reader, const uint8_t* utf8);
+
+		/**
+		   Free `reader`.
+		*/
+		SERD_API
+			void
+			serd_reader_free(SerdReader* reader);
+
+		/**
+		   @}
+		   @name Writer
+		   @{
+		*/
+
+		/**
+		   Create a new RDF writer.
+		*/
+		SERD_API
+			SerdWriter*
+			serd_writer_new(SerdSyntax     syntax,
+				SerdStyle      style,
+				SerdEnv* env,
+				const SerdURI* base_uri,
+				SerdSink       ssink,
+				void* stream);
+
+		/**
+		   Free `writer`.
+		*/
+		SERD_API
+			void
+			serd_writer_free(SerdWriter* writer);
+
+		/**
+		   Return the env used by `writer`.
+		*/
+		SERD_API
+			SerdEnv*
+			serd_writer_get_env(SerdWriter* writer);
+
+		/**
+		   A convenience sink function for writing to a FILE*.
+
+		   This function can be used as a SerdSink when writing to a FILE*.  The
+		   `stream` parameter must be a FILE* opened for writing.
+		*/
+		SERD_API
+			size_t
+			serd_file_sink(const void* buf, size_t len, void* stream);
+
+		/**
+		   A convenience sink function for writing to a string.
+
+		   This function can be used as a SerdSink to write to a SerdChunk which is
+		   resized as necessary with realloc().  The `stream` parameter must point to
+		   an initialized SerdChunk.  When the write is finished, the string should be
+		   retrieved with serd_chunk_sink_finish().
+		*/
+		SERD_API
+			size_t
+			serd_chunk_sink(const void* buf, size_t len, void* stream);
+
+		/**
+		   Finish a serialisation to a chunk with serd_chunk_sink().
+
+		   The returned string is the result of the serialisation, which is NULL
+		   terminated (by this function) and owned by the caller.
+		*/
+		SERD_API
+			uint8_t*
+			serd_chunk_sink_finish(SerdChunk* stream);
+
+		/**
+		   Set a function to be called when errors occur during writing.
+
+		   The `error_sink` will be called with `handle` as its first argument.  If
+		   no error function is set, errors are printed to stderr.
+		*/
+		SERD_API
+			void
+			serd_writer_set_error_sink(SerdWriter* writer,
+				SerdErrorSink error_sink,
+				void* error_handle);
+
+		/**
+		   Set a prefix to be removed from matching blank node identifiers.
+		*/
+		SERD_API
+			void
+			serd_writer_chop_blank_prefix(SerdWriter* writer,
+				const uint8_t* prefix);
+
+		/**
+		   Set the current output base URI (and emit directive if applicable).
+
+		   Note this function can be safely casted to SerdBaseSink.
+		*/
+		SERD_API
+			SerdStatus
+			serd_writer_set_base_uri(SerdWriter* writer,
+				const SerdNode* uri);
+
+		/**
+		   Set the current root URI.
+
+		   The root URI should be a prefix of the base URI.  The path of the root URI
+		   is the highest path any relative up-reference can refer to.  For example,
+		   with root <file:///foo/root> and base <file:///foo/root/base>,
+		   <file:///foo/root> will be written as <../>, but <file:///foo> will be
+		   written non-relatively as <file:///foo>.  If the root is not explicitly set,
+		   it defaults to the base URI, so no up-references will be created at all.
+		*/
+		SERD_API
+			SerdStatus
+			serd_writer_set_root_uri(SerdWriter* writer,
+				const SerdNode* uri);
+
+		/**
+		   Set a namespace prefix (and emit directive if applicable).
+
+		   Note this function can be safely casted to SerdPrefixSink.
+		*/
+		SERD_API
+			SerdStatus
+			serd_writer_set_prefix(SerdWriter* writer,
+				const SerdNode* name,
+				const SerdNode* uri);
+
+		/**
+		   Write a statement.
+
+		   Note this function can be safely casted to SerdStatementSink.
+		*/
+		SERD_API
+			SerdStatus
+			serd_writer_write_statement(SerdWriter* writer,
+				SerdStatementFlags flags,
+				const SerdNode* graph,
+				const SerdNode* subject,
+				const SerdNode* predicate,
+				const SerdNode* object,
+				const SerdNode* datatype,
+				const SerdNode* lang);
+
+		/**
+		   Mark the end of an anonymous node's description.
+
+		   Note this function can be safely casted to SerdEndSink.
+		*/
+		SERD_API
+			SerdStatus
+			serd_writer_end_anon(SerdWriter* writer,
+				const SerdNode* node);
+
+		/**
+		   Finish a write.
+		*/
+		SERD_API
+			SerdStatus
+			serd_writer_finish(SerdWriter* writer);
+
+		typedef enum {
+			ZIX_STATUS_SUCCESS,
+			ZIX_STATUS_ERROR,
+			ZIX_STATUS_NO_MEM,
+			ZIX_STATUS_NOT_FOUND,
+			ZIX_STATUS_EXISTS,
+			ZIX_STATUS_BAD_ARG,
+			ZIX_STATUS_BAD_PERMS,
+		} ZixStatus;
+
+		/**
+		   Function for comparing two elements.
+		*/
+		typedef int (*ZixComparator)(const void* a, const void* b, void* user_data);
+
+		/**
+		   Function for testing equality of two elements.
+		*/
+		typedef bool (*ZixEqualFunc)(const void* a, const void* b);
+
+		/**
+		   Function to destroy an element.
+		*/
+		typedef void (*ZixDestroyFunc)(void* ptr);
+
+		/**
+		   @}
+		*/
+
+		uint32_t zix_digest_start(void);
+
+		uint32_t zix_digest_add(uint32_t hash, const void* buf, size_t len);
+
+
+		typedef struct ZixHashImpl ZixHash;
+
+		/**
+		   Function for computing the hash of an element.
+		*/
+		typedef uint32_t(*ZixHashFunc)(const void* value);
+
+		/**
+		   Function to visit a hash element.
+		*/
+		typedef void (*ZixHashVisitFunc)(void* value,
+			void* user_data);
+
+		/**
+		   Create a new hash table.
+
+		   To minimize space overhead, unlike many hash tables this stores a single
+		   value, not a key and a value.  Any size of value can be stored, but all the
+		   values in the hash table must be the same size, and the values must be safe
+		   to copy with memcpy.  To get key:value behaviour, simply insert a struct
+		   with a key and value into the hash.
+
+		   @param hash_func The hashing function.
+		   @param equal_func A function to test value equality.
+		   @param value_size The size of the values to be stored.
+		*/
+		ZIX_API ZixHash*
+			zix_hash_new(ZixHashFunc  hash_func,
+				ZixEqualFunc equal_func,
+				size_t       value_size);
+
+		/**
+		   Free `hash`.
+		*/
+		ZIX_API void
+			zix_hash_free(ZixHash* hash);
+
+		/**
+		   Return the number of elements in `hash`.
+		*/
+		ZIX_API size_t
+			zix_hash_size(const ZixHash* hash);
+
+		/**
+		   Insert an item into `hash`.
+
+		   If no matching value is found, ZIX_STATUS_SUCCESS will be returned, and @p
+		   inserted will be pointed to the copy of `value` made in the new hash node.
+
+		   If a matching value already exists, ZIX_STATUS_EXISTS will be returned, and
+		   `inserted` will be pointed to the existing value.
+
+		   @param hash The hash table.
+		   @param value The value to be inserted.
+		   @param inserted The copy of `value` in the hash table.
+		   @return ZIX_STATUS_SUCCESS, ZIX_STATUS_EXISTS, or ZIX_STATUS_NO_MEM.
+		*/
+		ZIX_API ZixStatus
+			zix_hash_insert(ZixHash* hash,
+				const void* value,
+				const void** inserted);
+
+		/**
+		   Remove an item from `hash`.
+
+		   @param hash The hash table.
+		   @param value The value to remove.
+		   @return ZIX_STATUS_SUCCES or ZIX_STATUS_NOT_FOUND.
+		*/
+		ZIX_API ZixStatus
+			zix_hash_remove(ZixHash* hash,
+				const void* value);
+
+		/**
+		   Search for an item in `hash`.
+
+		   @param hash The hash table.
+		   @param value The value to search for.
+		*/
+		ZIX_API const void*
+			zix_hash_find(const ZixHash* hash,
+				const void* value);
+
+		/**
+		   Call `f` on each value in `hash`.
+
+		   @param hash The hash table.
+		   @param f The function to call on each value.
+		   @param user_data The user_data parameter passed to `f`.
+		*/
+		ZIX_API void
+			zix_hash_foreach(ZixHash* hash,
+				ZixHashVisitFunc f,
+				void* user_data);
+
+
+
+
+		/**
+		   A B-Tree.
+		*/
+		typedef struct ZixBTreeImpl ZixBTree;
+
+		/**
+		   A B-Tree node (opaque).
+		*/
+		typedef struct ZixBTreeNodeImpl ZixBTreeNode;
+
+		/**
+		   An iterator over a B-Tree.
+
+		   Note that modifying the trees invalidates all iterators, so all iterators
+		   are const iterators.
+		*/
+		typedef struct ZixBTreeIterImpl ZixBTreeIter;
+
+		/**
+		   Create a new (empty) B-Tree.
+		*/
+		ZIX_API ZixBTree*
+			zix_btree_new(ZixComparator  cmp,
+				void* cmp_data,
+				ZixDestroyFunc destroy);
+
+		/**
+		   Free `t`.
+		*/
+		ZIX_API void
+			zix_btree_free(ZixBTree* t);
+
+		/**
+		   Return the number of elements in `t`.
+		*/
+		ZIX_API size_t
+			zix_btree_size(const ZixBTree* t);
+
+		/**
+		   Insert the element `e` into `t`.
+		*/
+		ZIX_API ZixStatus
+			zix_btree_insert(ZixBTree* t, void* e);
+
+		/**
+		   Remove the value `e` from `t`.
+
+		   @param t Tree to remove from.
+
+		   @param e Value to remove.
+
+		   @param out Set to point to the removed pointer (which may not equal `e`).
+
+		   @param next If non-NULL, pointed to the value following `e`.  If *next is
+		   also non-NULL, the iterator is reused, otherwise a new one is allocated.  To
+		   reuse an iterator, no items may have been added since its creation.
+		*/
+		ZIX_API ZixStatus
+			zix_btree_remove(ZixBTree* t, const void* e, void** out, ZixBTreeIter** next);
+
+		/**
+		   Set `ti` to an element equal to `e` in `t`.
+		   If no such item exists, `ti` is set to NULL.
+		*/
+		ZIX_API ZixStatus
+			zix_btree_find(const ZixBTree* t, const void* e, ZixBTreeIter** ti);
+
+		/**
+		   Set `ti` to the smallest element in `t` that is not less than `e`.
+
+		   Wildcards are supported, so if the search key `e` compares equal to many
+		   values in the tree, `ti` will be set to the least such element.  The search
+		   key `e` is always passed as the second argument to the comparator.
+		*/
+		ZIX_API ZixStatus
+			zix_btree_lower_bound(const ZixBTree* t, const void* e, ZixBTreeIter** ti);
+
+		/**
+		   Return the data associated with the given tree item.
+		*/
+		ZIX_API void*
+			zix_btree_get(const ZixBTreeIter* ti);
+
+		/**
+		   Return an iterator to the first (smallest) element in `t`.
+
+		   The returned iterator must be freed with zix_btree_iter_free().
+		*/
+		ZIX_API ZixBTreeIter*
+			zix_btree_begin(const ZixBTree* t);
+
+		/**
+		   Return true iff `i` is an iterator to the end of its tree.
+		*/
+		ZIX_API bool
+			zix_btree_iter_is_end(const ZixBTreeIter* i);
+
+		/**
+		   Increment `i` to point to the next element in the tree.
+		*/
+		ZIX_API void
+			zix_btree_iter_increment(ZixBTreeIter* i);
+
+		/**
+		   Free `i`.
+		*/
+		ZIX_API void
+			zix_btree_iter_free(ZixBTreeIter* i);
+
+
+
+
+		/**
+		   @defgroup sord Sord
+		   A lightweight RDF model library.
+
+		   Sord stores RDF (subject object predicate context) quads, where the context
+		   may be omitted (to represent triples in the default graph).
+		   @{
+		*/
+
+		/**
+		   Sord World.
+		   The World represents all library state, including interned strings.
+		*/
+		typedef struct SordWorldImpl SordWorld;
+
+		/**
+		   Sord Model.
+
+		   A model is an indexed set of Quads (i.e. it can contain several RDF
+		   graphs).  It may be searched using various patterns depending on which
+		   indices are enabled.
+		*/
+		typedef struct SordModelImpl SordModel;
+
+		/**
+		   Model Inserter.
+
+		   An inserter is used for writing statements to a model using the Serd sink
+		   interface.  This makes it simple to write to a model directly using a
+		   SerdReader, or any other code that writes statements to a SerdStatementSink.
+		*/
+		typedef struct SordInserterImpl SordInserter;
+
+		/**
+		   Model Iterator.
+		*/
+		typedef struct SordIterImpl SordIter;
+
+		/**
+		   RDF Node.
+		   A Node is a component of a Quad.  Nodes may be URIs, blank nodes, or
+		   (in the case of quad objects only) string literals. Literal nodes may
+		   have an associate language or datatype (but not both).
+		*/
+		typedef struct SordNodeImpl SordNode;
+
+		/**
+		   Quad of nodes (a statement), or a quad pattern.
+
+		   Nodes are ordered (S P O G).  The ID of the default graph is 0.
+		*/
+		typedef const SordNode* SordQuad[4];
+
+		/**
+		   Index into a SordQuad.
+		*/
+		typedef enum {
+			SORD_SUBJECT = 0,  /**< Subject */
+			SORD_PREDICATE = 1,  /**< Predicate ("key") */
+			SORD_OBJECT = 2,  /**< Object    ("value") */
+			SORD_GRAPH = 3   /**< Graph     ("context") */
+		} SordQuadIndex;
+
+		/**
+		   Type of a node.
+		*/
+		typedef enum {
+			SORD_URI = 1,  /**< URI */
+			SORD_BLANK = 2,  /**< Blank node identifier */
+			SORD_LITERAL = 3   /**< Literal (string with optional lang or datatype) */
+		} SordNodeType;
+
+		/**
+		   Indexing option.
+		*/
+		typedef enum {
+			SORD_SPO = 1,       /**< Subject,   Predicate, Object */
+			SORD_SOP = 1 << 1,  /**< Subject,   Object,    Predicate */
+			SORD_OPS = 1 << 2,  /**< Object,    Predicate, Subject */
+			SORD_OSP = 1 << 3,  /**< Object,    Subject,   Predicate */
+			SORD_PSO = 1 << 4,  /**< Predicate, Subject,   Object */
+			SORD_POS = 1 << 5   /**< Predicate, Object,    Subject */
+		} SordIndexOption;
+
+		/**
+		   @name World
+		   @{
+		*/
+
+		/**
+		   Create a new Sord World.
+		   It is safe to use multiple worlds in one process, though no data
+		   (e.g. nodes) can be shared between worlds, and this should be avoided if
+		   possible for performance reasons.
+		*/
+		SORD_API
+			SordWorld*
+			sord_world_new(void);
+
+		/**
+		   Free `world`.
+		*/
+		SORD_API
+			void
+			sord_world_free(SordWorld* world);
+
+		/**
+		   Set a function to be called when errors occur.
+
+		   The `error_sink` will be called with `handle` as its first argument.  If
+		   no error function is set, errors are printed to stderr.
+		*/
+		SORD_API
+			void
+			sord_world_set_error_sink(SordWorld* world,
+				SerdErrorSink error_sink,
+				void* handle);
+
+
+
+		/**
+		   Get a URI node from a string.
+
+		   Note this function measures `str`, which is a common bottleneck.
+		   Use sord_node_from_serd_node() instead if `str` is already measured.
+		*/
+		SORD_API
+			SordNode*
+			sord_new_uri(SordWorld* world, const uint8_t* uri);
+
+		/**
+		   Get a URI node from a relative URI string.
+		*/
+		SORD_API
+			SordNode*
+			sord_new_relative_uri(SordWorld* world,
+				const uint8_t* uri,
+				const uint8_t* base_uri);
+
+		/**
+		   Get a blank node from a string.
+
+		   Note this function measures `str`, which is a common bottleneck.
+		   Use sord_node_from_serd_node() instead if `str` is already measured.
+		*/
+		SORD_API
+			SordNode*
+			sord_new_blank(SordWorld* world, const uint8_t* str);
+
+		/**
+		   Get a literal node from a string.
+
+		   Note this function measures `str`, which is a common bottleneck.
+		   Use sord_node_from_serd_node() instead if `str` is already measured.
+		*/
+		SORD_API
+			SordNode*
+			sord_new_literal(SordWorld* world,
+				SordNode* datatype,
+				const uint8_t* str,
+				const char* lang);
+
+		/**
+		   Copy a node (obtain a reference).
+
+		   Node that since nodes are interned and reference counted, this does not
+		   actually create a deep copy of `node`.
+		*/
+		SORD_API
+			SordNode*
+			sord_node_copy(const SordNode* node);
+
+		/**
+		   Free a node (drop a reference).
+		*/
+		SORD_API
+			void
+			sord_node_free(SordWorld* world, SordNode* node);
+
+		/**
+		   Return the type of a node (SORD_URI, SORD_BLANK, or SORD_LITERAL).
+		*/
+		SORD_API
+			SordNodeType
+			sord_node_get_type(const SordNode* node);
+
+		/**
+		   Return the string value of a node.
+		*/
+		SORD_API
+			const uint8_t*
+			sord_node_get_string(const SordNode* node);
+
+		/**
+		   Return the string value of a node, and set `bytes` to its length in bytes.
+		*/
+		SORD_API
+			const uint8_t*
+			sord_node_get_string_counted(const SordNode* node, size_t* bytes);
+
+		/**
+		   Return the string value of a node, and set `bytes` to its length in bytes,
+		   and `count` to its length in characters.
+		*/
+		SORD_API
+			const uint8_t*
+			sord_node_get_string_measured(const SordNode* node,
+				size_t* bytes,
+				size_t* chars);
+
+		/**
+		   Return the language of a literal node (or NULL).
+		*/
+		SORD_API
+			const char*
+			sord_node_get_language(const SordNode* node);
+
+		/**
+		   Return the datatype URI of a literal node (or NULL).
+		*/
+		SORD_API
+			SordNode*
+			sord_node_get_datatype(const SordNode* node);
+
+		/**
+		   Return the flags (string attributes) of a node.
+		*/
+		SORD_API
+			SerdNodeFlags
+			sord_node_get_flags(const SordNode* node);
+
+		/**
+		   Return true iff node can be serialised as an inline object.
+
+		   More specifically, this returns true iff the node is the object field
+		   of exactly one statement, and therefore can be inlined since it needn't
+		   be referred to by name.
+		*/
+		SORD_API
+			bool
+			sord_node_is_inline_object(const SordNode* node);
+
+		/**
+		   Return true iff `a` is equal to `b`.
+
+		   Note this is much faster than comparing the node's strings.
+		*/
+		SORD_API
+			bool
+			sord_node_equals(const SordNode* a,
+				const SordNode* b);
+
+		/**
+		   Return a SordNode as a SerdNode.
+
+		   The returned node is shared and must not be freed or modified.
+		*/
+		SORD_API
+			const SerdNode*
+			sord_node_to_serd_node(const SordNode* node);
+
+		/**
+		   Create a new SordNode from a SerdNode.
+
+		   The returned node must be freed using sord_node_free().
+		*/
+		SORD_API
+			SordNode*
+			sord_node_from_serd_node(SordWorld* world,
+				SerdEnv* env,
+				const SerdNode* node,
+				const SerdNode* datatype,
+				const SerdNode* lang);
+
+		/**
+		   Create a new model.
+
+		   @param world The world in which to make this model.
+
+		   @param indices SordIndexOption flags (e.g. SORD_SPO|SORD_OPS).  Be sure to
+		   enable an index where the most significant node(s) are not variables in your
+		   queries (e.g. to make (? P O) queries, enable either SORD_OPS or SORD_POS).
+
+		   @param graphs If true, store (and index) graph contexts.
+		*/
+		SORD_API
+			SordModel*
+			sord_new(SordWorld* world,
+				unsigned  indices,
+				bool      graphs);
+
+		/**
+		   Close and free `model`.
+		*/
+		SORD_API
+			void
+			sord_free(SordModel* model);
+
+		/**
+		   Get the world associated with `model`.
+		*/
+		SORD_API
+			SordWorld*
+			sord_get_world(SordModel* model);
+
+		/**
+		   Return the number of nodes stored in `world`.
+
+		   Nodes are included in this count iff they are a part of a quad in `world`.
+		*/
+		SORD_API
+			size_t
+			sord_num_nodes(const SordWorld* world);
+
+		/**
+		   Return the number of quads stored in `model`.
+		*/
+		SORD_API
+			size_t
+			sord_num_quads(const SordModel* model);
+
+		/**
+		   Return an iterator to the start of `model`.
+		*/
+		SORD_API
+			SordIter*
+			sord_begin(const SordModel* model);
+
+		/**
+		   Search for statements by a quad pattern.
+		   @return an iterator to the first match, or NULL if no matches found.
+		*/
+		SORD_API
+			SordIter*
+			sord_find(SordModel* model, const SordQuad pat);
+
+		/**
+		   Search for statements by nodes.
+		   @return an iterator to the first match, or NULL if no matches found.
+		*/
+		SORD_API
+			SordIter*
+			sord_search(SordModel* model,
+				const SordNode* s,
+				const SordNode* p,
+				const SordNode* o,
+				const SordNode* g);
+		/**
+		   Search for a single node that matches a pattern.
+		   Exactly one of `s`, `p`, `o` must be NULL.
+		   This function is mainly useful for predicates that only have one value.
+		   The returned node must be freed using sord_node_free().
+		   @return the first matching node, or NULL if no matches are found.
+		*/
+		SORD_API
+			SordNode*
+			sord_get(SordModel* model,
+				const SordNode* s,
+				const SordNode* p,
+				const SordNode* o,
+				const SordNode* g);
+
+		/**
+		   Return true iff a statement exists.
+		*/
+		SORD_API
+			bool
+			sord_ask(SordModel* model,
+				const SordNode* s,
+				const SordNode* p,
+				const SordNode* o,
+				const SordNode* g);
+
+		/**
+		   Return the number of matching statements.
+		*/
+		SORD_API
+			uint64_t
+			sord_count(SordModel* model,
+				const SordNode* s,
+				const SordNode* p,
+				const SordNode* o,
+				const SordNode* g);
+
+		/**
+		   Check if `model` contains a triple pattern.
+
+		   @return true if `model` contains a match for `pat`, otherwise false.
+		*/
+		SORD_API
+			bool
+			sord_contains(SordModel* model, const SordQuad pat);
+
+		/**
+		   Add a quad to a model.
+
+		   Calling this function invalidates all iterators on `model`.
+
+		   @return true on success, false, on error.
+		*/
+		SORD_API
+			bool
+			sord_add(SordModel* model, const SordQuad tup);
+
+		/**
+		   Remove a quad from a model.
+
+		   Calling this function invalidates all iterators on `model`.  To remove quads
+		   while iterating, use sord_erase() instead.
+		*/
+		SORD_API
+			void
+			sord_remove(SordModel* model, const SordQuad tup);
+
+		/**
+		   Remove a quad from a model via an iterator.
+
+		   Calling this function invalidates all iterators on `model` except `iter`.
+
+		   @param model The model which `iter` points to.
+		   @param iter Iterator to the element to erase, which is incremented to the
+		   next value on return.
+		*/
+		SORD_API
+			SerdStatus
+			sord_erase(SordModel* model, SordIter* iter);
+
+		/**
+		   @}
+		   @name Inserter
+		   @{
+		*/
+
+		/**
+		   Create an inserter for writing statements to a model.
+		*/
+		SORD_API
+			SordInserter*
+			sord_inserter_new(SordModel* model,
+				SerdEnv* env);
+
+		/**
+		   Free an inserter.
+		*/
+		SORD_API
+			void
+			sord_inserter_free(SordInserter* inserter);
+
+		/**
+		   Set the current base URI for writing to the model.
+
+		   Note this function can be safely casted to SerdBaseSink.
+		*/
+		SORD_API
+			SerdStatus
+			sord_inserter_set_base_uri(SordInserter* inserter,
+				const SerdNode* uri);
+
+		/**
+		   Set a namespace prefix for writing to the model.
+
+		   Note this function can be safely casted to SerdPrefixSink.
+		*/
+		SORD_API
+			SerdStatus
+			sord_inserter_set_prefix(SordInserter* inserter,
+				const SerdNode* name,
+				const SerdNode* uri);
+
+		/**
+		   Write a statement to the model.
+
+		   Note this function can be safely casted to SerdStatementSink.
+		*/
+		SORD_API
+			SerdStatus
+			sord_inserter_write_statement(SordInserter* inserter,
+				SerdStatementFlags flags,
+				const SerdNode* graph,
+				const SerdNode* subject,
+				const SerdNode* predicate,
+				const SerdNode* object,
+				const SerdNode* object_datatype,
+				const SerdNode* object_lang);
+
+		/**
+		   @}
+		   @name Iteration
+		   @{
+		*/
+
+		/**
+		   Set `quad` to the quad pointed to by `iter`.
+		*/
+		SORD_API
+			void
+			sord_iter_get(const SordIter* iter, SordQuad tup);
+
+		/**
+		   Return a field of the quad pointed to by `iter`.
+
+		   Returns NULL if `iter` is NULL or is at the end.
+		*/
+		SORD_API
+			const SordNode*
+			sord_iter_get_node(const SordIter* iter, SordQuadIndex index);
+
+		/**
+		   Return the store pointed to by `iter`.
+		*/
+		SORD_API
+			const SordModel*
+			sord_iter_get_model(SordIter* iter);
+
+		/**
+		   Increment `iter` to point to the next statement.
+		*/
+		SORD_API
+			bool
+			sord_iter_next(SordIter* iter);
+
+		/**
+		   Return true iff `iter` is at the end of its range.
+		*/
+		SORD_API
+			bool
+			sord_iter_end(const SordIter* iter);
+
+		/**
+		   Free `iter`.
+		*/
+		SORD_API
+			void
+			sord_iter_free(SordIter* iter);
+
+		/**
+		   @}
+		   @name Utilities
+		   @{
+		*/
+
+		/**
+		   Match two quads (using ID comparison only).
+
+		   This function is a straightforward and fast equivalence match with wildcard
+		   support (ID 0 is a wildcard). It does not actually read node data.
+		   @return true iff `x` and `y` match.
+		*/
+		SORD_API
+			bool
+			sord_quad_match(const SordQuad x, const SordQuad y);
+
+		/**
+		   @}
+		   @name Serialisation
+		   @{
+		*/
+
+		/**
+		   Return a reader that will read into `model`.
+		*/
+		SORD_API
+			SerdReader*
+			sord_new_reader(SordModel* model,
+				SerdEnv* env,
+				SerdSyntax syntax,
+				SordNode* graph);
+
+		/**
+		   Write a model to a writer.
+		*/
+		SORD_API
+			bool
+			sord_write(SordModel* model,
+				SerdWriter* writer,
+				SordNode* graph);
+
+		/**
+		   Write a range to a writer.
+
+		   This increments `iter` to its end, then frees it.
+		*/
+		SORD_API
+			bool
+			sord_write_iter(SordIter* iter,
+				SerdWriter* writer);
+
+		/**
+		   @}
+		   @}
+		*/
+
     /**
    A balanced binary search tree.
 */
