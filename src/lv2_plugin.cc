@@ -26,6 +26,8 @@
 #include <iostream>
 #include <sstream>
 #include <assert.h>
+#include <iostream>
+
 using namespace std;
 
 class LV2World
@@ -71,15 +73,18 @@ LV2Plugin::LV2Plugin (string const & filename)
 	_features[1] = _uri_map.urid_map_feature ();
 	_features[2] = _uri_map.urid_unmap_feature ();
 	_features[3] = 0;
+	//just add temporary the given filestr to the lilvworld, so that the plugin must not ne in LV2 path.
+	auto bundlePath = filename.substr(0,filename.find_last_of('/')+1);
+	LilvNode* bundle = lilv_new_file_uri(world.world, NULL, bundlePath.c_str());
+	lilv_world_load_bundle(world.world, bundle);
 
 	LilvPlugins const * plugins = lilv_world_get_all_plugins (world.world);
-
 	LILV_FOREACH(plugins, i, plugins) {
 		const LilvPlugin* p = lilv_plugins_get(plugins, i);
 		LilvNodes const * uris = lilv_plugin_get_data_uris (p);
 		LILV_FOREACH (nodes, j, uris) {
 			string path = lilv_uri_to_path (lilv_node_as_string (lilv_nodes_get (uris, j)));
-
+			std::cout << path << std::endl;
 			while (path.find ("//") != string::npos) {
 				replace_all (path, "//", "/");
 			}
