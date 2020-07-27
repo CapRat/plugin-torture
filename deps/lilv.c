@@ -9,7 +9,7 @@
 #include <presets/presets.h>
 #include <state/state.h>
 #include <urid/urid.h>
-
+#include "_lilv.h"
 #ifdef LILV_DYN_MANIFEST
 #    include <dynmanifest/dynmanifest.h>
 #    include <dlfcn.h>
@@ -54,58 +54,12 @@ static inline const char* dlerror(void) { return "Unknown error"; }
 #    include <unistd.h>
 #endif
 
-//SRATOM
 
 #define NS_RDF (const uint8_t*)"http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 #define NS_XSD (const uint8_t*)"http://www.w3.org/2001/XMLSchema#"
 #define USTR(str) ((const uint8_t*)(str))
 
-/**
-   @defgroup sratom Sratom
 
-   A library for serialising LV2 Atoms.
-
-   @{
-*/
-
-/**
-   Atom serialiser.
-*/
-typedef struct SratomImpl Sratom;
-
-/**
-   Mode for reading resources to LV2 Objects.
-
-   This affects how resources (which are either blank nodes or have URIs) are
-   read by sratom_read(), since they may be read as simple references (a URI or
-   blank node ID) or a complete description (an atom "Object").
-
-   Currently, blank nodes are always read as Objects, but support for reading
-   blank node IDs may be added in the future.
-*/
-typedef enum {
-    /**
-       Read blank nodes as Objects, and named resources as URIs.
-    */
-    SRATOM_OBJECT_MODE_BLANK,
-
-    /**
-       Read blank nodes and the main subject as Objects, and any other named
-       resources as URIs.  The "main subject" is the subject parameter passed
-       to sratom_read(); if this is a resource it will be read as an Object,
-       but all other named resources encountered will be read as URIs.
-    */
-    SRATOM_OBJECT_MODE_BLANK_SUBJECT
-} SratomObjectMode;
-
-static const SerdStyle style = (SerdStyle)(
-    SERD_STYLE_ABBREVIATED | SERD_STYLE_RESOLVED | SERD_STYLE_CURIED);
-
-typedef enum {
-    MODE_SUBJECT,
-    MODE_BODY,
-    MODE_SEQUENCE
-} ReadMode;
 
 struct SratomImpl {
     LV2_URID_Map* map;
@@ -977,7 +931,7 @@ sratom_from_turtle(Sratom* sratom,
 #    include <smmintrin.h>
 #endif
 
-ZIX_API uint32_t
+uint32_t
 zix_digest_start(void)
 {
 #ifdef __SSE4_2__
@@ -987,7 +941,7 @@ zix_digest_start(void)
 #endif
 }
 
-ZIX_API uint32_t
+uint32_t
 zix_digest_add(uint32_t hash, const void* const buf, const size_t len)
 {
     const uint8_t* str = (const uint8_t*)buf;
@@ -1044,7 +998,7 @@ zix_hash_value(ZixHashEntry* entry)
     return entry + 1;
 }
 
-ZIX_API ZixHash*
+ZixHash*
 zix_hash_new(ZixHashFunc  hash_func,
     ZixEqualFunc equal_func,
     size_t       value_size)
@@ -1065,7 +1019,7 @@ zix_hash_new(ZixHashFunc  hash_func,
     return hash;
 }
 
-ZIX_API void
+void
 zix_hash_free(ZixHash* hash)
 {
     for (unsigned b = 0; b < *hash->n_buckets; ++b) {
@@ -1081,7 +1035,7 @@ zix_hash_free(ZixHash* hash)
     free(hash);
 }
 
-ZIX_API size_t
+size_t
 zix_hash_size(const ZixHash* hash)
 {
     return hash->count;
@@ -1133,7 +1087,7 @@ find_entry(const ZixHash* hash,
     return NULL;
 }
 
-ZIX_API const void*
+const void*
 zix_hash_find(const ZixHash* hash, const void* value)
 {
     const unsigned h_nomod = hash->hash_func(value);
@@ -1142,7 +1096,7 @@ zix_hash_find(const ZixHash* hash, const void* value)
     return entry ? zix_hash_value(entry) : 0;
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_hash_insert(ZixHash* hash, const void* value, const void** inserted)
 {
     unsigned h_nomod = hash->hash_func(value);
@@ -1180,7 +1134,7 @@ zix_hash_insert(ZixHash* hash, const void* value, const void** inserted)
     return ZIX_STATUS_SUCCESS;
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_hash_remove(ZixHash* hash, const void* value)
 {
     const unsigned h_nomod = hash->hash_func(value);
@@ -1210,7 +1164,7 @@ zix_hash_remove(ZixHash* hash, const void* value)
     return ZIX_STATUS_NOT_FOUND;
 }
 
-ZIX_API void
+void
 zix_hash_foreach(ZixHash* hash,
     ZixHashVisitFunc f,
     void* user_data)
@@ -1262,7 +1216,7 @@ struct ZixBTreeIterImpl {
 
 #ifdef ZIX_BTREE_DEBUG
 
-ZIX_PRIVATE void
+void
 print_node(const ZixBTreeNode* n, const char* prefix)
 {
     printf("%s[", prefix);
@@ -1272,7 +1226,7 @@ print_node(const ZixBTreeNode* n, const char* prefix)
     printf(" ]\n");
 }
 
-ZIX_PRIVATE void
+void
 print_tree(const ZixBTreeNode* parent, const ZixBTreeNode* node, int level)
 {
     if (node) {
@@ -1296,7 +1250,7 @@ print_tree(const ZixBTreeNode* parent, const ZixBTreeNode* node, int level)
 
 #endif  // ZIX_BTREE_DEBUG
 
-ZIX_PRIVATE ZixBTreeNode*
+ZixBTreeNode*
 zix_btree_node_new(const bool leaf)
 {
     assert(sizeof(ZixBTreeNode) == ZIX_BTREE_PAGE_SIZE);
@@ -1308,7 +1262,7 @@ zix_btree_node_new(const bool leaf)
     return node;
 }
 
-ZIX_API ZixBTree*
+ZixBTree*
 zix_btree_new(const ZixComparator  cmp,
     void* const          cmp_data,
     const ZixDestroyFunc destroy)
@@ -1329,7 +1283,7 @@ zix_btree_new(const ZixComparator  cmp,
     return t;
 }
 
-ZIX_PRIVATE void
+void
 zix_btree_free_rec(ZixBTree* const t, ZixBTreeNode* const n)
 {
     if (n) {
@@ -1347,7 +1301,7 @@ zix_btree_free_rec(ZixBTree* const t, ZixBTreeNode* const n)
     }
 }
 
-ZIX_API void
+void
 zix_btree_free(ZixBTree* const t)
 {
     if (t) {
@@ -1356,26 +1310,26 @@ zix_btree_free(ZixBTree* const t)
     }
 }
 
-ZIX_API size_t
+size_t
 zix_btree_size(const ZixBTree* const t)
 {
     return t->size;
 }
 
-ZIX_PRIVATE uint16_t
+uint16_t
 zix_btree_max_vals(const ZixBTreeNode* const node)
 {
     return node->is_leaf ? ZIX_BTREE_LEAF_VALS : ZIX_BTREE_INODE_VALS;
 }
 
-ZIX_PRIVATE uint16_t
+uint16_t
 zix_btree_min_vals(const ZixBTreeNode* const node)
 {
     return ((zix_btree_max_vals(node) + 1) / 2) - 1;
 }
 
 /** Shift pointers in `array` of length `n` right starting at `i`. */
-ZIX_PRIVATE void
+void
 zix_btree_ainsert(void** const   array,
     const uint16_t n,
     const uint16_t i,
@@ -1386,7 +1340,7 @@ zix_btree_ainsert(void** const   array,
 }
 
 /** Erase element `i` in `array` of length `n` and return erased element. */
-ZIX_PRIVATE void*
+void*
 zix_btree_aerase(void** const array, const uint16_t n, const uint16_t i)
 {
     void* const ret = array[i];
@@ -1395,7 +1349,7 @@ zix_btree_aerase(void** const array, const uint16_t n, const uint16_t i)
 }
 
 /** Split lhs, the i'th child of `n`, into two nodes. */
-ZIX_PRIVATE ZixBTreeNode*
+ZixBTreeNode*
 zix_btree_split_child(ZixBTreeNode* const n,
     const uint16_t      i,
     ZixBTreeNode* const lhs)
@@ -1437,7 +1391,7 @@ zix_btree_split_child(ZixBTreeNode* const n,
 }
 
 /** Find the first value in `n` that is not less than `e` (lower bound). */
-ZIX_PRIVATE uint16_t
+uint16_t
 zix_btree_node_find(const ZixBTree* const     t,
     const ZixBTreeNode* const n,
     const void* const         e,
@@ -1466,7 +1420,7 @@ zix_btree_node_find(const ZixBTree* const     t,
     return first;
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_btree_insert(ZixBTree* const t, void* const e)
 {
     ZixBTreeNode* parent = NULL;     // Parent of n
@@ -1525,7 +1479,7 @@ zix_btree_insert(ZixBTree* const t, void* const e)
     return ZIX_STATUS_SUCCESS;
 }
 
-ZIX_PRIVATE ZixBTreeIter*
+ZixBTreeIter*
 zix_btree_iter_new(const ZixBTree* const t)
 {
     const size_t s = t->height * sizeof(ZixBTreeIterFrame);
@@ -1533,7 +1487,7 @@ zix_btree_iter_new(const ZixBTree* const t)
     return (ZixBTreeIter*)calloc(1, sizeof(ZixBTreeIter) + s);
 }
 
-ZIX_PRIVATE void
+void
 zix_btree_iter_set_frame(ZixBTreeIter* const ti,
     ZixBTreeNode* const n,
     const uint16_t      i)
@@ -1544,7 +1498,7 @@ zix_btree_iter_set_frame(ZixBTreeIter* const ti,
     }
 }
 
-ZIX_PRIVATE bool
+bool
 zix_btree_node_is_minimal(ZixBTreeNode* const n)
 {
     assert(n->n_vals >= zix_btree_min_vals(n));
@@ -1552,7 +1506,7 @@ zix_btree_node_is_minimal(ZixBTreeNode* const n)
 }
 
 /** Enlarge left child by stealing a value from its right sibling. */
-ZIX_PRIVATE ZixBTreeNode*
+ZixBTreeNode*
 zix_btree_rotate_left(ZixBTreeNode* const parent, const uint16_t i)
 {
     ZixBTreeNode* const lhs = parent->children[i];
@@ -1574,7 +1528,7 @@ zix_btree_rotate_left(ZixBTreeNode* const parent, const uint16_t i)
 }
 
 /** Enlarge right child by stealing a value from its left sibling. */
-ZIX_PRIVATE ZixBTreeNode*
+ZixBTreeNode*
 zix_btree_rotate_right(ZixBTreeNode* const parent, const uint16_t i)
 {
     ZixBTreeNode* const lhs = parent->children[i - 1];
@@ -1598,7 +1552,7 @@ zix_btree_rotate_right(ZixBTreeNode* const parent, const uint16_t i)
 }
 
 /** Move n[i] down, merge the left and right child, return the merged node. */
-ZIX_PRIVATE ZixBTreeNode*
+ZixBTreeNode*
 zix_btree_merge(ZixBTree* const t, ZixBTreeNode* const n, const uint16_t i)
 {
     ZixBTreeNode* const lhs = n->children[i];
@@ -1634,7 +1588,7 @@ zix_btree_merge(ZixBTree* const t, ZixBTreeNode* const n, const uint16_t i)
 }
 
 /** Remove and return the min value from the subtree rooted at `n`. */
-ZIX_PRIVATE void*
+void*
 zix_btree_remove_min(ZixBTree* const t, ZixBTreeNode* n)
 {
     while (!n->is_leaf) {
@@ -1658,7 +1612,7 @@ zix_btree_remove_min(ZixBTree* const t, ZixBTreeNode* n)
 }
 
 /** Remove and return the max value from the subtree rooted at `n`. */
-ZIX_PRIVATE void*
+void*
 zix_btree_remove_max(ZixBTree* const t, ZixBTreeNode* n)
 {
     while (!n->is_leaf) {
@@ -1681,7 +1635,7 @@ zix_btree_remove_max(ZixBTree* const t, ZixBTreeNode* n)
     return n->vals[--n->n_vals];
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_btree_remove(ZixBTree* const      t,
     const void* const    e,
     void** const         out,
@@ -1792,7 +1746,7 @@ zix_btree_remove(ZixBTree* const      t,
     return ZIX_STATUS_ERROR;
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_btree_find(const ZixBTree* const t,
     const void* const     e,
     ZixBTreeIter** const  ti)
@@ -1825,7 +1779,7 @@ zix_btree_find(const ZixBTree* const t,
     return ZIX_STATUS_NOT_FOUND;
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_btree_lower_bound(const ZixBTree* const t,
     const void* const     e,
     ZixBTreeIter** const  ti)
@@ -1879,7 +1833,7 @@ zix_btree_lower_bound(const ZixBTree* const t,
     return ZIX_STATUS_SUCCESS;
 }
 
-ZIX_API void*
+void*
 zix_btree_get(const ZixBTreeIter* const ti)
 {
     const ZixBTreeIterFrame* const frame = &ti->stack[ti->level];
@@ -1888,7 +1842,7 @@ zix_btree_get(const ZixBTreeIter* const ti)
     return frame->node->vals[frame->index];
 }
 
-ZIX_API ZixBTreeIter*
+ZixBTreeIter*
 zix_btree_begin(const ZixBTree* const t)
 {
     ZixBTreeIter* const i = zix_btree_iter_new(t);
@@ -1912,13 +1866,13 @@ zix_btree_begin(const ZixBTree* const t)
     return i;
 }
 
-ZIX_API bool
+bool
 zix_btree_iter_is_end(const ZixBTreeIter* const i)
 {
     return !i || i->stack[0].node == NULL;
 }
 
-ZIX_API void
+void
 zix_btree_iter_increment(ZixBTreeIter* const i)
 {
     ZixBTreeIterFrame* f = &i->stack[i->level];
@@ -1960,7 +1914,7 @@ zix_btree_iter_increment(ZixBTreeIter* const i)
     }
 }
 
-ZIX_API void
+void
 zix_btree_iter_free(ZixBTreeIter* const i)
 {
     free(i);
@@ -3349,7 +3303,7 @@ sord_inserter_write_statement(SordInserter* inserter,
     return SERD_SUCCESS;
 }
 
-SORD_API
+
 SerdReader*
 sord_new_reader(SordModel* model,
     SerdEnv* env,
@@ -9187,7 +9141,7 @@ struct ZixTreeNodeImpl {
 #    define DEBUG_PRINTF(fmt, ...)
 #endif
 
-ZIX_API ZixTree*
+ZixTree*
 zix_tree_new(bool           allow_duplicates,
     ZixComparator  cmp,
     void* cmp_data,
@@ -9203,7 +9157,7 @@ zix_tree_new(bool           allow_duplicates,
     return t;
 }
 
-ZIX_PRIVATE void
+void
 zix_tree_free_rec(ZixTree* t, ZixTreeNode* n)
 {
     if (n) {
@@ -9216,7 +9170,7 @@ zix_tree_free_rec(ZixTree* t, ZixTreeNode* n)
     }
 }
 
-ZIX_API void
+void
 zix_tree_free(ZixTree* t)
 {
     if (t) {
@@ -9225,13 +9179,13 @@ zix_tree_free(ZixTree* t)
     }
 }
 
-ZIX_API size_t
+size_t
 zix_tree_size(const ZixTree* t)
 {
     return t->size;
 }
 
-ZIX_PRIVATE void
+void
 rotate(ZixTreeNode* p, ZixTreeNode* q)
 {
     assert(q->parent == p);
@@ -9277,7 +9231,7 @@ rotate(ZixTreeNode* p, ZixTreeNode* q)
  *     / \        / \
  *    B   C      A   B
  */
-ZIX_PRIVATE ZixTreeNode*
+ZixTreeNode*
 rotate_left(ZixTreeNode* p, int* height_change)
 {
     ZixTreeNode* const q = p->right;
@@ -9310,7 +9264,7 @@ rotate_left(ZixTreeNode* p, int* height_change)
  *  A   B          B   C
  *
  */
-ZIX_PRIVATE ZixTreeNode*
+ZixTreeNode*
 rotate_right(ZixTreeNode* p, int* height_change)
 {
     ZixTreeNode* const q = p->left;
@@ -9345,7 +9299,7 @@ rotate_right(ZixTreeNode* p, int* height_change)
  *    B   C
  *
  */
-ZIX_PRIVATE ZixTreeNode*
+ZixTreeNode*
 rotate_left_right(ZixTreeNode* p, int* height_change)
 {
     ZixTreeNode* const q = p->left;
@@ -9389,7 +9343,7 @@ rotate_left_right(ZixTreeNode* p, int* height_change)
  *  B   C
  *
  */
-ZIX_PRIVATE ZixTreeNode*
+ZixTreeNode*
 rotate_right_left(ZixTreeNode* p, int* height_change)
 {
     ZixTreeNode* const q = p->right;
@@ -9422,7 +9376,7 @@ rotate_right_left(ZixTreeNode* p, int* height_change)
     return r;
 }
 
-ZIX_PRIVATE ZixTreeNode*
+ZixTreeNode*
 zix_tree_rebalance(ZixTree* t, ZixTreeNode* node, int* height_change)
 {
 #ifdef ZIX_TREE_HYPER_VERIFY
@@ -9462,7 +9416,7 @@ zix_tree_rebalance(ZixTree* t, ZixTreeNode* node, int* height_change)
     return replacement;
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_tree_insert(ZixTree* t, void* e, ZixTreeIter** ti)
 {
     DEBUG_PRINTF("**** INSERT %ld\n", (intptr_t)e);
@@ -9567,7 +9521,7 @@ zix_tree_insert(ZixTree* t, void* e, ZixTreeIter** ti)
     return ZIX_STATUS_SUCCESS;
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_tree_remove(ZixTree* t, ZixTreeIter* ti)
 {
     ZixTreeNode* const n = ti;
@@ -9733,7 +9687,7 @@ zix_tree_remove(ZixTree* t, ZixTreeIter* ti)
     return ZIX_STATUS_SUCCESS;
 }
 
-ZIX_API ZixStatus
+ZixStatus
 zix_tree_find(const ZixTree* t, const void* e, ZixTreeIter** ti)
 {
     ZixTreeNode* n = t->root;
@@ -9754,13 +9708,13 @@ zix_tree_find(const ZixTree* t, const void* e, ZixTreeIter** ti)
     return (n) ? ZIX_STATUS_SUCCESS : ZIX_STATUS_NOT_FOUND;
 }
 
-ZIX_API void*
+void*
 zix_tree_get(const ZixTreeIter* ti)
 {
     return ti ? ti->data : NULL;
 }
 
-ZIX_API ZixTreeIter*
+ZixTreeIter*
 zix_tree_begin(ZixTree* t)
 {
     if (!t->root) {
@@ -9774,13 +9728,13 @@ zix_tree_begin(ZixTree* t)
     return n;
 }
 
-ZIX_API ZixTreeIter*
+ZixTreeIter*
 zix_tree_end(ZixTree* t)
 {
     return NULL;
 }
 
-ZIX_API ZixTreeIter*
+ZixTreeIter*
 zix_tree_rbegin(ZixTree* t)
 {
     if (!t->root) {
@@ -9794,25 +9748,25 @@ zix_tree_rbegin(ZixTree* t)
     return n;
 }
 
-ZIX_API ZixTreeIter*
+ZixTreeIter*
 zix_tree_rend(ZixTree* t)
 {
     return NULL;
 }
 
-ZIX_API bool
+bool
 zix_tree_iter_is_end(const ZixTreeIter* i)
 {
     return !i;
 }
 
-ZIX_API bool
+bool
 zix_tree_iter_is_rend(const ZixTreeIter* i)
 {
     return !i;
 }
 
-ZIX_API ZixTreeIter*
+ZixTreeIter*
 zix_tree_iter_next(ZixTreeIter* i)
 {
     if (!i) {
@@ -9836,7 +9790,7 @@ zix_tree_iter_next(ZixTreeIter* i)
     return i;
 }
 
-ZIX_API ZixTreeIter*
+ZixTreeIter*
 zix_tree_iter_prev(ZixTreeIter* i)
 {
     if (!i) {
