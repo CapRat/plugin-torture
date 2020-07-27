@@ -9,7 +9,6 @@
 #include <presets/presets.h>
 #include <state/state.h>
 #include <urid/urid.h>
-#include "_lilv.h"
 #ifdef LILV_DYN_MANIFEST
 #    include <dynmanifest/dynmanifest.h>
 #    include <dlfcn.h>
@@ -61,6 +60,856 @@ static inline const char* dlerror(void) { return "Unknown error"; }
 
 
 
+/*************ENUMS*************/
+
+// Index into a SordQuad.
+typedef enum { //
+    SORD_SUBJECT = 0,
+    SORD_PREDICATE = 1,
+    SORD_OBJECT = 2,
+    SORD_GRAPH = 3
+} SordQuadIndex;
+
+//Type of a node.
+typedef enum {
+    SORD_URI = 1,
+    SORD_BLANK = 2,
+    SORD_LITERAL = 3
+} SordNodeType;
+//Indexing option.
+typedef enum {
+    SORD_SPO = 1,
+    SORD_SOP = 1 << 1,
+    SORD_OPS = 1 << 2,
+    SORD_OSP = 1 << 3,
+    SORD_PSO = 1 << 4,
+    SORD_POS = 1 << 5
+} SordIndexOption;
+
+typedef enum {
+    ZIX_STATUS_SUCCESS,
+    ZIX_STATUS_ERROR,
+    ZIX_STATUS_NO_MEM,
+    ZIX_STATUS_NOT_FOUND,
+    ZIX_STATUS_EXISTS,
+    ZIX_STATUS_BAD_ARG,
+    ZIX_STATUS_BAD_PERMS,
+} ZixStatus;
+// Return status code.
+typedef enum {
+    SERD_SUCCESS,
+    SERD_FAILURE,
+    SERD_ERR_UNKNOWN,
+    SERD_ERR_BAD_SYNTAX,
+    SERD_ERR_BAD_ARG,
+    SERD_ERR_NOT_FOUND,
+    SERD_ERR_ID_CLASH,
+    SERD_ERR_BAD_CURIE,
+    SERD_ERR_INTERNAL
+} SerdStatus;
+
+// RDF syntax type.
+typedef enum {
+    SERD_TURTLE = 1, //  Turtle - Terse RDF Triple Language (UTF-8).  @see <a href="http://www.w3.org/TeamSubmission/turtle/">Turtle</a>
+    SERD_NTRIPLES = 2, //  NTriples - Line-based RDF triples (ASCII).   @see <a href="http://www.w3.org/TR/rdf-testcases#ntriples">NTriples</a>
+    SERD_NQUADS = 3, //  NQuads - Line-based RDF quads (UTF-8). @see <a href="https://www.w3.org/TR/n-quads/">NQuads</a>
+    SERD_TRIG = 4 //TriG - Terse RDF quads (UTF-8). @see <a href="https://www.w3.org/TR/trig/">Trig</a>
+} SerdSyntax;
+
+typedef enum {
+    SERD_EMPTY_S = 1 << 1,
+    SERD_EMPTY_O = 1 << 2,
+    SERD_ANON_S_BEGIN = 1 << 3,
+    SERD_ANON_O_BEGIN = 1 << 4,
+    SERD_ANON_CONT = 1 << 5,
+    SERD_LIST_S_BEGIN = 1 << 6,
+    SERD_LIST_O_BEGIN = 1 << 7,
+    SERD_LIST_CONT = 1 << 8
+} SerdStatementFlag;
+
+typedef enum {
+    SERD_NOTHING = 0,
+    SERD_LITERAL = 1,
+    SERD_URI = 2,
+    SERD_CURIE = 3,
+    SERD_BLANK = 4
+} SerdType;
+
+typedef enum {
+    SERD_HAS_NEWLINE = 1,
+    SERD_HAS_QUOTE = 1 << 1
+} SerdNodeFlag;
+typedef enum {
+    SERD_STYLE_ABBREVIATED = 1,
+    SERD_STYLE_ASCII = 1 << 1,
+    SERD_STYLE_RESOLVED = 1 << 2,
+    SERD_STYLE_CURIED = 1 << 3,
+    SERD_STYLE_BULK = 1 << 4
+} SerdStyle;
+
+typedef enum {
+    SRATOM_OBJECT_MODE_BLANK,
+    SRATOM_OBJECT_MODE_BLANK_SUBJECT
+} SratomObjectMode;
+static const SerdStyle style = (SerdStyle)(
+    SERD_STYLE_ABBREVIATED | SERD_STYLE_RESOLVED | SERD_STYLE_CURIED);
+typedef enum {
+    MODE_SUBJECT,
+    MODE_BODY,
+    MODE_SEQUENCE
+} ReadMode;
+
+/** Triple ordering */
+typedef enum {
+    SPO,   ///<         Subject,   Predicate, Object
+    SOP,   ///<         Subject,   Object,    Predicate
+    OPS,   ///<         Object,    Predicate, Subject
+    OSP,   ///<         Object,    Subject,   Predicate
+    PSO,   ///<         Predicate, Subject,   Object
+    POS,   ///<         Predicate, Object,    Subject
+    GSPO,  ///< Graph,  Subject,   Predicate, Object
+    GSOP,  ///< Graph,  Subject,   Object,    Predicate
+    GOPS,  ///< Graph,  Object,    Predicate, Subject
+    GOSP,  ///< Graph,  Object,    Subject,   Predicate
+    GPSO,  ///< Graph,  Predicate, Subject,   Object
+    GPOS   ///< Graph,  Predicate, Object,    Subject
+} SordOrder;
+
+/** Mode for searching or iteration */
+typedef enum {
+    ALL,           ///< Iterate over entire store
+    SINGLE,        ///< Iteration over a single element (exact search)
+    RANGE,         ///< Iterate over range with equal prefix
+    FILTER_RANGE,  ///< Iterate over range with equal prefix, filtering
+    FILTER_ALL     ///< Iterate to end of store, filtering
+} SearchMode;
+
+/*****************TYPEDEFS******************/
+typedef uint32_t SerdStatementFlags;
+typedef uint32_t SerdNodeFlags;
+
+typedef struct ZixBTreeImpl ZixBTree;
+typedef struct ZixBTreeNodeImpl ZixBTreeNode;
+typedef struct ZixBTreeIterImpl ZixBTreeIter;
+typedef struct ZixTreeImpl ZixTree;
+typedef struct ZixTreeNodeImpl ZixTreeIter;
+typedef struct ZixHashImpl ZixHash;
+typedef struct SerdEnvImpl SerdEnv;
+typedef struct SerdReaderImpl SerdReader;
+typedef struct SerdWriterImpl SerdWriter;
+typedef struct SordWorldImpl SordWorld;
+typedef struct SordModelImpl SordModel;
+typedef struct SordInserterImpl SordInserter;
+typedef struct SordIterImpl SordIter;
+typedef struct SordNodeImpl SordNode;
+typedef const SordNode* SordQuad[4];
+
+
+
+/****************STRUCTS******************/
+typedef struct {
+    const uint8_t* buf;
+    size_t         n_bytes;
+    size_t         n_chars;
+    SerdNodeFlags  flags;
+    SerdType       type;
+} SerdNode;
+
+typedef struct {
+    const uint8_t* buf;
+    size_t         len;
+} SerdChunk;
+
+typedef struct {
+    SerdStatus     status;
+    const uint8_t* filename;
+    unsigned       line;
+    unsigned       col;
+    const char* fmt;
+    va_list* args;
+} SerdError;
+
+typedef struct {
+    SerdChunk scheme;
+    SerdChunk authority;
+    SerdChunk path_base;
+    SerdChunk path;
+    SerdChunk query;
+    SerdChunk fragment;
+} SerdURI;
+
+typedef struct ZixHashEntry {
+    struct ZixHashEntry* next;  ///< Next entry in bucket
+    uint32_t             hash;  ///< Non-modulo hash value
+    // Value follows here (access with zix_hash_value)
+} ZixHashEntry;
+
+typedef uint32_t(*ZixHashFunc)(const void* value);
+typedef bool (*ZixEqualFunc)(const void* a, const void* b);
+struct ZixHashImpl {
+    ZixHashFunc     hash_func;
+    ZixEqualFunc    equal_func;
+    ZixHashEntry** buckets;
+    const unsigned* n_buckets;
+    size_t          value_size;
+    unsigned        count;
+};
+
+typedef struct {
+    ZixBTreeNode* node;
+    unsigned      index;
+} ZixBTreeIterFrame;
+
+struct ZixBTreeIterImpl {
+    unsigned          level;    ///< Current level in stack
+    ZixBTreeIterFrame stack[];  ///< Position stack
+};
+
+/** Resource node metadata */
+typedef struct {
+    size_t refs_as_obj;  ///< References as a quad object
+} SordResourceMetadata;
+
+/** Literal node metadata */
+typedef struct {
+    SordNode* datatype;  ///< Optional literal data type URI
+    char      lang[16];  ///< Optional language tag
+} SordLiteralMetadata;
+
+/** Node */
+struct SordNodeImpl {
+    SerdNode node;  ///< Serd node
+    size_t   refs;  ///< Reference count (# of containing quads)
+    union {
+        SordResourceMetadata res;
+        SordLiteralMetadata  lit;
+    } meta;
+};
+
+
+typedef int (*ZixComparator)(const void* a, const void* b, void* user_data);
+
+
+
+typedef void (*ZixDestroyFunc)(void* ptr);
+
+
+typedef void (*ZixHashVisitFunc)(void* value, void* user_data);
+
+
+typedef void (*ZixHashVisitFunc)(void* value, void* user_data);
+typedef int (*SerdStreamErrorFunc)(void* stream);
+typedef size_t(*SerdSource)(void* buf, size_t size, size_t nmemb, void* stream);
+typedef size_t(*SerdSink)(const void* buf, size_t len, void* stream);
+typedef SerdStatus(*SerdErrorSink)(void* handle, const SerdError* error);
+
+typedef SerdStatus(*SerdBaseSink)(void* handle, const SerdNode* uri);
+
+typedef SerdStatus(*SerdPrefixSink)(void* handle, const SerdNode* name, const SerdNode* uri);
+
+typedef SerdStatus(*SerdStatementSink)(void* handle,
+    SerdStatementFlags flags,
+    const SerdNode* graph,
+    const SerdNode* subject,
+    const SerdNode* predicate,
+    const SerdNode* object,
+    const SerdNode* object_datatype,
+    const SerdNode* object_lang);
+
+typedef SerdStatus(*SerdEndSink)(void* handle, const SerdNode* node);
+
+
+
+
+
+/*********************FUNCTIONS***************************/
+
+uint32_t zix_digest_start(void);
+uint32_t zix_digest_add(uint32_t hash, const void* buf, size_t len);
+
+ZixHash* zix_hash_new(ZixHashFunc  hash_func,
+    ZixEqualFunc equal_func,
+    size_t       value_size);
+
+void zix_hash_free(ZixHash* hash);
+
+size_t zix_hash_size(const ZixHash* hash);
+
+ZixStatus zix_hash_insert(ZixHash* hash,
+    const void* value,
+    const void** inserted);
+
+ZixStatus zix_hash_remove(ZixHash* hash, const void* value);
+
+const void* zix_hash_find(const ZixHash* hash, const void* value);
+
+void zix_hash_foreach(ZixHash* hash, ZixHashVisitFunc f, void* user_data);
+
+
+ZixBTree* zix_btree_new(ZixComparator  cmp, void* cmp_data, ZixDestroyFunc destroy);
+
+void
+zix_btree_free(ZixBTree* t);
+
+size_t
+zix_btree_size(const ZixBTree* t);
+
+ZixStatus
+zix_btree_insert(ZixBTree* t, void* e);
+
+ZixStatus
+zix_btree_remove(ZixBTree* t, const void* e, void** out, ZixBTreeIter** next);
+
+ZixStatus
+zix_btree_find(const ZixBTree* t, const void* e, ZixBTreeIter** ti);
+
+ZixStatus
+zix_btree_lower_bound(const ZixBTree* t, const void* e, ZixBTreeIter** ti);
+
+void*
+zix_btree_get(const ZixBTreeIter* ti);
+
+ZixBTreeIter*
+zix_btree_begin(const ZixBTree* t);
+
+bool
+zix_btree_iter_is_end(const ZixBTreeIter* i);
+
+void
+zix_btree_iter_increment(ZixBTreeIter* i);
+
+void
+zix_btree_iter_free(ZixBTreeIter* i);
+
+ZixTree*
+zix_tree_new(bool           allow_duplicates,
+    ZixComparator  cmp,
+    void* cmp_data,
+    ZixDestroyFunc destroy);
+
+void
+zix_tree_free(ZixTree* t);
+
+size_t
+zix_tree_size(const ZixTree* t);
+
+ZixStatus
+zix_tree_insert(ZixTree* t, void* e, ZixTreeIter** ti);
+
+ZixStatus
+zix_tree_remove(ZixTree* t, ZixTreeIter* ti);
+
+ZixStatus
+zix_tree_find(const ZixTree* t, const void* e, ZixTreeIter** ti);
+
+void*
+zix_tree_get(const ZixTreeIter* ti);
+
+ZixTreeIter*
+zix_tree_begin(ZixTree* t);
+
+ZixTreeIter*
+zix_tree_end(ZixTree* t);
+
+bool
+zix_tree_iter_is_end(const ZixTreeIter* i);
+
+ZixTreeIter*
+zix_tree_rbegin(ZixTree* t);
+
+ZixTreeIter*
+zix_tree_rend(ZixTree* t);
+
+bool
+zix_tree_iter_is_rend(const ZixTreeIter* i);
+
+ZixTreeIter*
+zix_tree_iter_next(ZixTreeIter* i);
+
+ZixTreeIter*
+zix_tree_iter_prev(ZixTreeIter* i);
+
+
+
+
+void
+serd_free(void* ptr);
+
+
+const uint8_t*
+serd_strerror(SerdStatus status);
+
+size_t
+serd_strlen(const uint8_t* str, size_t* n_bytes, SerdNodeFlags* flags);
+
+double
+serd_strtod(const char* str, char** endptr);
+
+void*
+serd_base64_decode(const uint8_t* str, size_t len, size_t* size);
+
+
+static const SerdURI SERD_URI_NULL = {
+    {NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}
+};
+
+const uint8_t*
+serd_uri_to_path(const uint8_t* uri);
+
+uint8_t*
+serd_file_uri_parse(const uint8_t* uri, uint8_t** hostname);
+
+bool
+serd_uri_string_has_scheme(const uint8_t* utf8);
+
+SerdStatus
+serd_uri_parse(const uint8_t* utf8, SerdURI* out);
+
+void
+serd_uri_resolve(const SerdURI* r, const SerdURI* base, SerdURI* t);
+
+size_t
+serd_uri_serialise(const SerdURI* uri, SerdSink sink, void* stream);
+
+size_t
+serd_uri_serialise_relative(const SerdURI* uri,
+    const SerdURI* base,
+    const SerdURI* root,
+    SerdSink       sink,
+    void* stream);
+
+static const SerdNode SERD_NODE_NULL = { NULL, 0, 0, 0, SERD_NOTHING };
+
+SerdNode
+serd_node_from_string(SerdType type, const uint8_t* str);
+
+SerdNode
+serd_node_from_substring(SerdType type, const uint8_t* str, size_t len);
+
+SerdNode
+serd_node_copy(const SerdNode* node);
+
+bool
+serd_node_equals(const SerdNode* a, const SerdNode* b);
+
+SerdNode
+serd_node_new_uri_from_node(const SerdNode* uri_node,
+    const SerdURI* base,
+    SerdURI* out);
+
+SerdNode
+serd_node_new_uri_from_string(const uint8_t* str,
+    const SerdURI* base,
+    SerdURI* out);
+
+SerdNode
+serd_node_new_file_uri(const uint8_t* path,
+    const uint8_t* hostname,
+    SerdURI* out,
+    bool           escape);
+
+SerdNode
+serd_node_new_uri(const SerdURI* uri, const SerdURI* base, SerdURI* out);
+
+SerdNode
+serd_node_new_relative_uri(const SerdURI* uri,
+    const SerdURI* base,
+    const SerdURI* root,
+    SerdURI* out);
+
+SerdNode
+serd_node_new_decimal(double d, unsigned frac_digits);
+
+SerdNode
+serd_node_new_integer(int64_t i);
+
+SerdNode
+serd_node_new_blob(const void* buf, size_t size, bool wrap_lines);
+
+void
+serd_node_free(SerdNode* node);
+
+
+
+SerdEnv*
+serd_env_new(const SerdNode* base_uri);
+
+void
+serd_env_free(SerdEnv* env);
+
+const SerdNode*
+serd_env_get_base_uri(const SerdEnv* env,
+    SerdURI* out);
+
+SerdStatus
+serd_env_set_base_uri(SerdEnv* env,
+    const SerdNode* uri);
+
+SerdStatus
+serd_env_set_prefix(SerdEnv* env,
+    const SerdNode* name,
+    const SerdNode* uri);
+
+SerdStatus
+serd_env_set_prefix_from_strings(SerdEnv* env,
+    const uint8_t* name,
+    const uint8_t* uri);
+
+bool
+serd_env_qualify(const SerdEnv* env,
+    const SerdNode* uri,
+    SerdNode* prefix,
+    SerdChunk* suffix);
+
+SerdStatus
+serd_env_expand(const SerdEnv* env,
+    const SerdNode* curie,
+    SerdChunk* uri_prefix,
+    SerdChunk* uri_suffix);
+
+
+void
+serd_env_foreach(const SerdEnv* env,
+    SerdPrefixSink func,
+    void* handle);
+
+
+SerdReader*
+serd_reader_new(SerdSyntax        syntax,
+    void* handle,
+    void              (*free_handle)(void*),
+    SerdBaseSink      base_sink,
+    SerdPrefixSink    prefix_sink,
+    SerdStatementSink statement_sink,
+    SerdEndSink       end_sink);
+
+void
+serd_reader_set_strict(SerdReader* reader, bool strict);
+
+void
+serd_reader_set_error_sink(SerdReader* reader,
+    SerdErrorSink error_sink,
+    void* error_handle);
+
+
+void
+serd_reader_add_blank_prefix(SerdReader* reader,
+    const uint8_t* prefix);
+
+void
+serd_reader_set_default_graph(SerdReader* reader,
+    const SerdNode* graph);
+
+SerdStatus
+serd_reader_read_file(SerdReader* reader,
+    const uint8_t* uri);
+
+SerdStatus
+serd_reader_start_stream(SerdReader* reader,
+    FILE* file,
+    const uint8_t* name,
+    bool           bulk);
+
+SerdStatus
+serd_reader_start_source_stream(SerdReader* reader,
+    SerdSource          read_func,
+    SerdStreamErrorFunc error_func,
+    void* stream,
+    const uint8_t* name,
+    size_t              page_size);
+
+
+SerdStatus
+serd_reader_end_stream(SerdReader* reader);
+
+
+SerdStatus
+serd_reader_read_source(SerdReader* reader,
+    SerdSource          source,
+    SerdStreamErrorFunc error,
+    void* stream,
+    const uint8_t* name,
+    size_t              page_size);
+
+SerdStatus
+serd_reader_read_string(SerdReader* reader, const uint8_t* utf8);
+
+void
+serd_reader_free(SerdReader* reader);
+
+
+SerdWriter*
+serd_writer_new(SerdSyntax     syntax,
+    SerdStyle      style,
+    SerdEnv* env,
+    const SerdURI* base_uri,
+    SerdSink       ssink,
+    void* stream);
+
+void
+serd_writer_free(SerdWriter* writer);
+
+SerdEnv*
+serd_writer_get_env(SerdWriter* writer);
+
+size_t
+serd_file_sink(const void* buf, size_t len, void* stream);
+
+size_t
+serd_chunk_sink(const void* buf, size_t len, void* stream);
+
+uint8_t*
+serd_chunk_sink_finish(SerdChunk* stream);
+
+void
+serd_writer_set_error_sink(SerdWriter* writer,
+    SerdErrorSink error_sink,
+    void* error_handle);
+
+void
+serd_writer_chop_blank_prefix(SerdWriter* writer,
+    const uint8_t* prefix);
+
+SerdStatus
+serd_writer_set_base_uri(SerdWriter* writer,
+    const SerdNode* uri);
+
+SerdStatus
+serd_writer_set_root_uri(SerdWriter* writer,
+    const SerdNode* uri);
+
+SerdStatus
+serd_writer_set_prefix(SerdWriter* writer,
+    const SerdNode* name,
+    const SerdNode* uri);
+
+SerdStatus
+serd_writer_write_statement(SerdWriter* writer,
+    SerdStatementFlags flags,
+    const SerdNode* graph,
+    const SerdNode* subject,
+    const SerdNode* predicate,
+    const SerdNode* object,
+    const SerdNode* datatype,
+    const SerdNode* lang);
+
+SerdStatus
+serd_writer_end_anon(SerdWriter* writer,
+    const SerdNode* node);
+
+SerdStatus
+serd_writer_finish(SerdWriter* writer);
+
+
+
+
+
+SordWorld*
+sord_world_new(void);
+
+void
+sord_world_free(SordWorld* world);
+
+void
+sord_world_set_error_sink(SordWorld* world,
+    SerdErrorSink error_sink,
+    void* handle);
+
+
+SordNode*
+sord_new_uri(SordWorld* world, const uint8_t* uri);
+
+SordNode*
+sord_new_relative_uri(SordWorld* world,
+    const uint8_t* uri,
+    const uint8_t* base_uri);
+
+SordNode*
+sord_new_blank(SordWorld* world, const uint8_t* str);
+
+SordNode*
+sord_new_literal(SordWorld* world,
+    SordNode* datatype,
+    const uint8_t* str,
+    const char* lang);
+
+SordNode*
+sord_node_copy(const SordNode* node);
+
+void
+sord_node_free(SordWorld* world, SordNode* node);
+
+SordNodeType
+sord_node_get_type(const SordNode* node);
+
+const uint8_t*
+sord_node_get_string(const SordNode* node);
+
+const uint8_t*
+sord_node_get_string_counted(const SordNode* node, size_t* bytes);
+
+const uint8_t*
+sord_node_get_string_measured(const SordNode* node,
+    size_t* bytes,
+    size_t* chars);
+
+const char*
+sord_node_get_language(const SordNode* node);
+
+SordNode*
+sord_node_get_datatype(const SordNode* node);
+
+SerdNodeFlags
+sord_node_get_flags(const SordNode* node);
+
+bool
+sord_node_is_inline_object(const SordNode* node);
+
+bool
+sord_node_equals(const SordNode* a,
+    const SordNode* b);
+
+const SerdNode*
+sord_node_to_serd_node(const SordNode* node);
+
+SordNode*
+sord_node_from_serd_node(SordWorld* world,
+    SerdEnv* env,
+    const SerdNode* node,
+    const SerdNode* datatype,
+    const SerdNode* lang);
+
+SordModel*
+sord_new(SordWorld* world,
+    unsigned  indices,
+    bool      graphs);
+
+void
+sord_free(SordModel* model);
+
+SordWorld*
+sord_get_world(SordModel* model);
+
+size_t
+sord_num_nodes(const SordWorld* world);
+
+size_t
+sord_num_quads(const SordModel* model);
+
+SordIter*
+sord_begin(const SordModel* model);
+
+SordIter*
+sord_find(SordModel* model, const SordQuad pat);
+
+SordIter*
+sord_search(SordModel* model,
+    const SordNode* s,
+    const SordNode* p,
+    const SordNode* o,
+    const SordNode* g);
+
+SordNode*
+sord_get(SordModel* model,
+    const SordNode* s,
+    const SordNode* p,
+    const SordNode* o,
+    const SordNode* g);
+
+bool
+sord_ask(SordModel* model,
+    const SordNode* s,
+    const SordNode* p,
+    const SordNode* o,
+    const SordNode* g);
+
+uint64_t
+sord_count(SordModel* model,
+    const SordNode* s,
+    const SordNode* p,
+    const SordNode* o,
+    const SordNode* g);
+
+bool
+sord_contains(SordModel* model, const SordQuad pat);
+
+bool
+sord_add(SordModel* model, const SordQuad tup);
+
+void
+sord_remove(SordModel* model, const SordQuad tup);
+
+SerdStatus
+sord_erase(SordModel* model, SordIter* iter);
+
+
+SordInserter*
+sord_inserter_new(SordModel* model,
+    SerdEnv* env);
+
+void
+sord_inserter_free(SordInserter* inserter);
+
+SerdStatus
+sord_inserter_set_base_uri(SordInserter* inserter,
+    const SerdNode* uri);
+
+SerdStatus
+sord_inserter_set_prefix(SordInserter* inserter,
+    const SerdNode* name,
+    const SerdNode* uri);
+
+SerdStatus
+sord_inserter_write_statement(SordInserter* inserter,
+    SerdStatementFlags flags,
+    const SerdNode* graph,
+    const SerdNode* subject,
+    const SerdNode* predicate,
+    const SerdNode* object,
+    const SerdNode* object_datatype,
+    const SerdNode* object_lang);
+
+
+void
+sord_iter_get(const SordIter* iter, SordQuad tup);
+
+const SordNode*
+sord_iter_get_node(const SordIter* iter, SordQuadIndex index);
+
+const SordModel*
+sord_iter_get_model(SordIter* iter);
+
+bool
+sord_iter_next(SordIter* iter);
+
+bool
+sord_iter_end(const SordIter* iter);
+
+void
+sord_iter_free(SordIter* iter);
+
+
+bool
+sord_quad_match(const SordQuad x, const SordQuad y);
+
+
+SerdReader*
+sord_new_reader(SordModel* model,
+    SerdEnv* env,
+    SerdSyntax syntax,
+    SordNode* graph);
+
+bool
+sord_write(SordModel* model,
+    SerdWriter* writer,
+    SordNode* graph);
+
+bool
+sord_write_iter(SordIter* iter,
+    SerdWriter* writer);
+
+
+
 struct SratomImpl {
     LV2_URID_Map* map;
     LV2_Atom_Forge    forge;
@@ -90,6 +939,8 @@ struct SratomImpl {
 
     bool pretty_numbers;
 };
+
+typedef struct SratomImpl Sratom;
 
 static void
 read_node(Sratom* sratom,
@@ -977,20 +1828,7 @@ static const unsigned sizes[] = {
     50331653, 100663319, 201326611, 402653189, 805306457, 1610612741, 0
 };
 
-typedef struct ZixHashEntry {
-    struct ZixHashEntry* next;  ///< Next entry in bucket
-    uint32_t             hash;  ///< Non-modulo hash value
-    // Value follows here (access with zix_hash_value)
-} ZixHashEntry;
 
-struct ZixHashImpl {
-    ZixHashFunc     hash_func;
-    ZixEqualFunc    equal_func;
-    ZixHashEntry** buckets;
-    const unsigned* n_buckets;
-    size_t          value_size;
-    unsigned        count;
-};
 
 static inline void*
 zix_hash_value(ZixHashEntry* entry)
@@ -1204,15 +2042,6 @@ struct ZixBTreeNodeImpl {
     ZixBTreeNode* children[ZIX_BTREE_INODE_VALS + 1];  // Nonexistent for leaves
 };
 
-typedef struct {
-    ZixBTreeNode* node;
-    unsigned      index;
-} ZixBTreeIterFrame;
-
-struct ZixBTreeIterImpl {
-    unsigned          level;    ///< Current level in stack
-    ZixBTreeIterFrame stack[];  ///< Position stack
-};
 
 #ifdef ZIX_BTREE_DEBUG
 
@@ -1927,27 +2756,6 @@ zix_btree_iter_free(ZixBTreeIter* const i)
 #    define SORD_UNREACHABLE() assert(false)
 #endif
 
-/** Resource node metadata */
-typedef struct {
-    size_t refs_as_obj;  ///< References as a quad object
-} SordResourceMetadata;
-
-/** Literal node metadata */
-typedef struct {
-    SordNode* datatype;  ///< Optional literal data type URI
-    char      lang[16];  ///< Optional language tag
-} SordLiteralMetadata;
-
-/** Node */
-struct SordNodeImpl {
-    SerdNode node;  ///< Serd node
-    size_t   refs;  ///< Reference count (# of containing quads)
-    union {
-        SordResourceMetadata res;
-        SordLiteralMetadata  lit;
-    } meta;
-};
-
 
 #define SORD_LOG(prefix, ...) fprintf(stderr, "[Sord::" prefix "] " __VA_ARGS__)
 
@@ -1985,22 +2793,6 @@ struct SordNodeImpl {
 #define TUP_P 1
 #define TUP_O 2
 #define TUP_G 3
-
-/** Triple ordering */
-typedef enum {
-    SPO,   ///<         Subject,   Predicate, Object
-    SOP,   ///<         Subject,   Object,    Predicate
-    OPS,   ///<         Object,    Predicate, Subject
-    OSP,   ///<         Object,    Subject,   Predicate
-    PSO,   ///<         Predicate, Subject,   Object
-    POS,   ///<         Predicate, Object,    Subject
-    GSPO,  ///< Graph,  Subject,   Predicate, Object
-    GSOP,  ///< Graph,  Subject,   Object,    Predicate
-    GOPS,  ///< Graph,  Object,    Predicate, Subject
-    GOSP,  ///< Graph,  Object,    Subject,   Predicate
-    GPSO,  ///< Graph,  Predicate, Subject,   Object
-    GPOS   ///< Graph,  Predicate, Object,    Subject
-} SordOrder;
 
 #ifdef SORD_DEBUG_SEARCH
 /** String name of each ordering (array indexed by SordOrder) */
@@ -2043,14 +2835,6 @@ struct SordModelImpl {
     size_t n_iters;
 };
 
-/** Mode for searching or iteration */
-typedef enum {
-    ALL,           ///< Iterate over entire store
-    SINGLE,        ///< Iteration over a single element (exact search)
-    RANGE,         ///< Iterate over range with equal prefix
-    FILTER_RANGE,  ///< Iterate over range with equal prefix, filtering
-    FILTER_ALL     ///< Iterate to end of store, filtering
-} SearchMode;
 
 /** Iterator over some range of a store */
 struct SordIterImpl {

@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.0.0)
 project(TortureTester)
 
 option(TORTURE_TESTER_INSTALL "Installs TortureTester Binary to System" ON)
-
 SET(DEPS_SRC 
 	${CMAKE_CURRENT_LIST_DIR}/deps/getopt.c
 	${CMAKE_CURRENT_LIST_DIR}/deps/getopt.h
