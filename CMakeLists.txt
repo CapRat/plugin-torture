@@ -7,8 +7,8 @@ SET(DEPS_SRC
 	${CMAKE_CURRENT_LIST_DIR}/deps/getopt.c
 	${CMAKE_CURRENT_LIST_DIR}/deps/getopt.h
 	${CMAKE_CURRENT_LIST_DIR}/deps/lilv.h
+#	${CMAKE_CURRENT_LIST_DIR}/deps/lilv.cpp
 	${CMAKE_CURRENT_LIST_DIR}/deps/lilv.c
-#	${CMAKE_CURRENT_LIST_DIR}/deps/serd.c
 )
 
 add_executable(TortureTester 
