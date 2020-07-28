@@ -36,7 +36,7 @@ public:
 	LV2World ()
 	{
 		world = lilv_world_new ();
-		lilv_world_load_all (world);
+		//lilv_world_load_all (world);
 		input_class = lilv_new_uri (world, LILV_URI_INPUT_PORT);
 		output_class = lilv_new_uri (world, LILV_URI_OUTPUT_PORT);
 		control_class = lilv_new_uri (world, LILV_URI_CONTROL_PORT);
@@ -77,8 +77,19 @@ LV2Plugin::LV2Plugin (string const & filename)
 	auto bundlePath = filename.substr(0,filename.find_last_of('/')+1);
 	LilvNode* bundle = lilv_new_file_uri(world.world, NULL, bundlePath.c_str());
 	lilv_world_load_bundle(world.world, bundle);
+	lilv_world_load_specifications(world.world);
+	lilv_world_load_plugin_classes(world.world);
+	auto lilvPlugins = lilv_world_get_all_plugins(world.world);
 
+	LILV_FOREACH(plugins, plugIter, lilvPlugins) {
+		// TODO: here u could get sth, like uri matcher or index matcher. now the last Plugin is taken.
+		const LilvPlugin* p = lilv_plugins_get(lilvPlugins, plugIter);
+		if(p!=nullptr)
+			_plugin = p;
+	}
+	/*
 	LilvPlugins const * plugins = lilv_world_get_all_plugins (world.world);
+
 	LILV_FOREACH(plugins, i, plugins) {
 		const LilvPlugin* p = lilv_plugins_get(plugins, i);
 		LilvNodes const * uris = lilv_plugin_get_data_uris (p);
@@ -94,7 +105,7 @@ LV2Plugin::LV2Plugin (string const & filename)
 				_plugin = p;
 			}
 		}
-	}
+	}*/
 
 	if (_plugin == 0) {
 		stringstream s;
