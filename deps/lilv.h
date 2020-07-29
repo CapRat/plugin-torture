@@ -25,7 +25,7 @@
 
 #define LILV_VERSION "0.22.1"
 
-#ifdef __WIN32__
+#ifdef _WIN32
 # define LILV_PATH_SEP ";"
 # define LILV_DIR_SEP "\\"
 #else
@@ -39,7 +39,7 @@
 #elif defined(__HAIKU__)
 # define HAVE_POSIX_MEMALIGN 1
 # define LILV_DEFAULT_LV2_PATH "~/.lv2:/boot/common/add-ons/lv2"
-#elif defined(__WIN32__)
+#elif defined(_WIN32)
 //# define LILV_DEFAULT_LV2_PATH "%APPDATA%\\LV2;%COMMONPROGRAMFILES%\\LV2;%CommonProgramFiles(x86)%\\LV2"
 # define LILV_DEFAULT_LV2_PATH "%APPDATA%\\LV2;%COMMONPROGRAMFILES%\\LV2"
 #else
@@ -49,8 +49,8 @@
 #endif
 
 
-#include <core/lv2.h>
-#include <urid/urid.h>
+#include <lv2/core/lv2.h>
+#include <lv2/urid/urid.h>
 
 #include <stdarg.h>
 #include <stdbool.h>

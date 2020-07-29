@@ -1,14 +1,14 @@
 #include "lilv.h"
 
-#include <core/lv2.h>
-#include <ui/ui.h>
-#include <midi/midi.h>
-#include <atom/atom.h>
-#include <event/event.h>
-#include <atom/forge.h>
-#include <presets/presets.h>
-#include <state/state.h>
-#include <urid/urid.h>
+#include <lv2/core/lv2.h>
+#include <lv2/ui/ui.h>
+#include <lv2/midi/midi.h>
+#include <lv2/atom/atom.h>
+#include <lv2/event/event.h>
+#include <lv2/atom/forge.h>
+#include <lv2/presets/presets.h>
+#include <lv2/state/state.h>
+#include <lv2/urid/urid.h>
 #ifdef LILV_DYN_MANIFEST
 #    include <dynmanifest/dynmanifest.h>
 #    include <dlfcn.h>
@@ -448,6 +448,10 @@ serd_strtod(const char* str, char** endptr);
 void*
 serd_base64_decode(const uint8_t* str, size_t len, size_t* size);
 
+SerdStatus
+serd_reader_read_file_handle(SerdReader* reader,
+    FILE* file,
+    const uint8_t* name);
 
 static const SerdURI SERD_URI_NULL = {
     {NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}, {NULL, 0}
