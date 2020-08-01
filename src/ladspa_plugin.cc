@@ -32,7 +32,7 @@ LadspaPlugin::LadspaPlugin (string const & filename, int index)
 	, _num_ports (0)
 	, _handle (0)
 	, _controls (0)
-	, _buffers (0)
+	, _buffers(0)
 {
 	_library = LoadLib (filename.c_str ());
 	if (_library == 0) {
@@ -75,6 +75,8 @@ LadspaPlugin::LadspaPlugin (string const & filename, int index)
 
 LadspaPlugin::~LadspaPlugin ()
 {
+	if(_descriptor!=nullptr && _descriptor->cleanup != nullptr)
+		_descriptor->cleanup(_handle);
 	unprepare ();
 	UnloadLib(_library);
 }
@@ -126,43 +128,56 @@ LadspaPlugin::prepare (int buffer_size)
 	_buffers = (LADSPA_Data **) calloc (_num_ports, sizeof (LADSPA_Data *));
 
 	for (int port = 0; port < _num_ports; ++port) {
-		LADSPA_Data min, max, start;
+		if (LADSPA_IS_PORT_CONTROL(_descriptor->PortDescriptors[port])) {
+			LADSPA_Data min, max, start;
 
-		if (LADSPA_IS_HINT_SAMPLE_RATE (hints[port].HintDescriptor)) {
-			min = hints[port].LowerBound * (float) _sampling_rate;
-			max = hints[port].UpperBound * (float) _sampling_rate;
-		} else {
-			min = hints[port].LowerBound;
-			max = hints[port].UpperBound;
+			if (LADSPA_IS_HINT_SAMPLE_RATE(hints[port].HintDescriptor)) {
+				min = hints[port].LowerBound * (float)_sampling_rate;
+				max = hints[port].UpperBound * (float)_sampling_rate;
+			}
+			else {
+				min = hints[port].LowerBound;
+				max = hints[port].UpperBound;
+			}
+
+			_descriptor->connect_port(_handle, port, &(_controls[port]));
+			if (LADSPA_IS_HINT_DEFAULT_MINIMUM(hints[port].HintDescriptor)) {
+				start = min;
+			}
+			else if (LADSPA_IS_HINT_DEFAULT_LOW(hints[port].HintDescriptor)) {
+				start = min * 0.75 + max * 0.25;
+			}
+			else if (LADSPA_IS_HINT_DEFAULT_MIDDLE(hints[port].HintDescriptor)) {
+				start = min * 0.5 + max * 0.5;
+			}
+			else if (LADSPA_IS_HINT_DEFAULT_HIGH(hints[port].HintDescriptor)) {
+				start = min * 0.25 + max * 0.75;
+			}
+			else if (LADSPA_IS_HINT_DEFAULT_MAXIMUM(hints[port].HintDescriptor)) {
+				start = max;
+			}
+			else if (LADSPA_IS_HINT_DEFAULT_0(hints[port].HintDescriptor)) {
+				start = 0.0;
+			}
+			else if (LADSPA_IS_HINT_DEFAULT_1(hints[port].HintDescriptor)) {
+				start = 1.0;
+			}
+			else if (LADSPA_IS_HINT_DEFAULT_100(hints[port].HintDescriptor)) {
+				start = 100.0;
+			}
+			else if (LADSPA_IS_HINT_DEFAULT_440(hints[port].HintDescriptor)) {
+				start = 440.0;
+			}
+			else if (LADSPA_IS_HINT_BOUNDED_BELOW(hints[port].HintDescriptor)
+				&& LADSPA_IS_HINT_BOUNDED_ABOVE(hints[port].HintDescriptor)) {
+				start = (min + max) * 0.5;
+			}
+			else {
+				start = 0;
+			}
+
+			_controls[port] = start;
 		}
-
-		_descriptor->connect_port(_handle, port, &(_controls[port]));
-		if (LADSPA_IS_HINT_DEFAULT_MINIMUM (hints[port].HintDescriptor)) {
-			start = min;
-		} else if (LADSPA_IS_HINT_DEFAULT_LOW (hints[port].HintDescriptor)) {
-			start = min * 0.75 + max * 0.25;
-		} else if (LADSPA_IS_HINT_DEFAULT_MIDDLE (hints[port].HintDescriptor)) {
-			start = min * 0.5 + max * 0.5;
-		} else if (LADSPA_IS_HINT_DEFAULT_HIGH (hints[port].HintDescriptor)) {
-			start = min * 0.25 + max * 0.75;
-		} else if (LADSPA_IS_HINT_DEFAULT_MAXIMUM (hints[port].HintDescriptor)) {
-			start = max;
-		} else if (LADSPA_IS_HINT_DEFAULT_0 (hints[port].HintDescriptor)) {
-			start = 0.0;
-		} else if (LADSPA_IS_HINT_DEFAULT_1 (hints[port].HintDescriptor)) {
-			start = 1.0;
-		} else if (LADSPA_IS_HINT_DEFAULT_100 (hints[port].HintDescriptor)) {
-			start = 100.0;
-		} else if (LADSPA_IS_HINT_DEFAULT_440 (hints[port].HintDescriptor)) {
-			start = 440.0;
-		} else if (LADSPA_IS_HINT_BOUNDED_BELOW (hints[port].HintDescriptor)
-			   && LADSPA_IS_HINT_BOUNDED_ABOVE (hints[port].HintDescriptor)) {
-			start = (min + max) * 0.5;
-		} else {
-			start = 0;
-		}
-
-		_controls[port] = start;
 	}
 
 	for (int port = 0; port < _num_ports; ++port) {

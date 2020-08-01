@@ -34,6 +34,7 @@ if (WIN32)
 	target_compile_definitions(TortureTester PUBLIC __WIN32__)
 else()
         target_link_libraries(TortureTester dl)
+		target_compile_options(TortureTester PUBLIC "-msse" "-mfpmath=sse")
 endif(WIN32)
 
 if(TORTURE_TESTER_INSTALL)
